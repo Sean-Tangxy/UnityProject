@@ -214,7 +214,7 @@ MonoBehaviour:
     attackRange: 1
     attackSpeed: 1
     attackCooldown: 0.5
-    swingAngle: 90
+    swingAngle: 128.6
     swingDuration: 0.3
     swingCurve:
       serializedVersion: 2

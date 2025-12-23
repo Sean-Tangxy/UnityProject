@@ -1,25 +1,64 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections;
 
+[RequireComponent(typeof(DirectionalMovement))]
 public class ShieldController : MonoBehaviour
 {
-    [Header("¶ÜÅÆÅäÖÃ")]
+    [Header("ç›¾ç‰Œé…ç½®")]
     public GameObject shieldPrefab;
-    public Transform shieldHand; // ×óÊÖÎ»ÖÃ
 
-    [Header("Íæ¼ÒÊôĞÔ")]
+    [Header("ç›¾ç‰ŒæŒ‚è½½ç‚¹å‘½åï¼ˆPlayerå­ç‰©ä½“ï¼‰")]
+    public string shieldUpName = "ShieldHand_up";
+    public string shieldDownName = "ShieldHand_down";
+    public string shieldLeftName = "ShieldHand_left";
+    public string shieldRightName = "ShieldHand_right";
+
+    [Header("ç©å®¶å±æ€§")]
     public float playerStamina = 100f;
     public float staminaRecoveryRate = 10f;
 
-    // ×´Ì¬
+    [Header("æ¸²æŸ“å±‚çº§ï¼ˆåœ°æ¿=0ï¼Œäººç‰©=2ï¼‰")]
+    public int floorOrder = 0;
+    public int playerOrder = 2;
+    public int behindPlayerOrder = 1; // äººç‰©å
+    public int frontPlayerOrder = 3;  // äººç‰©å‰
+
+    private Transform shieldHand;
+
+    private Transform handUp, handDown, handLeft, handRight;
+
+    private DirectionalMovement move;
+
     private GameObject currentShield;
     private ShieldObject shieldObject;
+
     private bool isHoldingBlock = false;
-    private bool isBlocking = false; // Ìí¼ÓÕâ¸ö×´Ì¬±äÁ¿
+    private bool isBlocking = false;
+
+    // ğŸ”’ é˜²å¾¡é”å®š
+    private bool lockFacing = false;
+    private Quaternion lockedRotation;
+    private Vector2 lockedFacing4 = Vector2.down;
 
     void Start()
     {
-        InitializeShieldHand();
+        move = GetComponent<DirectionalMovement>();
+        CacheShieldHands();
+
+        // âœ… ä¸€æ¬¡æ€§ç¡®è®¤æ˜¯å¦éƒ½æ‰¾åˆ°äº†
+        Debug.Log($"ShieldHands found: up={handUp != null}, down={handDown != null}, left={handLeft != null}, right={handRight != null}");
+
+        shieldHand = handDown != null ? handDown :
+                     handLeft != null ? handLeft :
+                     handRight != null ? handRight :
+                     handUp;
+
+        if (shieldHand == null)
+        {
+            Debug.LogError("æœªæ‰¾åˆ° ShieldHand_up/down/left/rightï¼ˆæ£€æŸ¥åå­—ä¸å±‚çº§æ˜¯å¦åœ¨Playerå­ç‰©ä½“ä¸‹ï¼‰");
+            enabled = false;
+            return;
+        }
 
         if (shieldPrefab != null)
         {
@@ -32,46 +71,92 @@ public class ShieldController : MonoBehaviour
         HandleInput();
         UpdateStamina();
 
-        // ¸üĞÂ·ÀÓù×´Ì¬£¨»ùÓÚ¶ÜÅÆ¶ÔÏóµÄ×´Ì¬£©
-        if (shieldObject != null)
+        isBlocking = shieldObject != null && shieldObject.IsBlocking();
+
+        // âœ… å¼ºåˆ¶å‹æˆå››å‘ï¼Œé¿å… float/æ–œå‘å¯¼è‡´ == å¤±è´¥
+        Vector2 facing4 = ToFacing4(move.GetFacing4Dir());
+
+        if (!lockFacing)
         {
-            isBlocking = shieldObject.IsBlocking();
+            UpdateShieldHandByFacing(facing4);
+        }
+
+        UpdateShieldRenderOrder(lockFacing ? lockedFacing4 : facing4);
+        UpdateShieldFollow();
+    }
+
+    #region æŒ‚è½½ç‚¹
+    void CacheShieldHands()
+    {
+        handUp = FindChildByNameIgnoreCase(transform, shieldUpName);
+        handDown = FindChildByNameIgnoreCase(transform, shieldDownName);
+        handLeft = FindChildByNameIgnoreCase(transform, shieldLeftName);
+        handRight = FindChildByNameIgnoreCase(transform, shieldRightName);
+    }
+
+    Transform FindChildByNameIgnoreCase(Transform root, string targetName)
+    {
+        var all = root.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < all.Length; i++)
+        {
+            if (string.Equals(all[i].name, targetName, System.StringComparison.OrdinalIgnoreCase))
+                return all[i];
+        }
+        return null;
+    }
+
+    // âœ… ä¸ç®¡è¾“å…¥æ˜¯(0.7,0.7)è¿˜æ˜¯(0,0.999)éƒ½å‹æˆä¸Šä¸‹å·¦å³
+    Vector2 ToFacing4(Vector2 dir)
+    {
+        if (dir.sqrMagnitude < 0.0001f) return Vector2.down; // å…œåº•ï¼šæ— æœå‘æ—¶ç»™down
+        float ax = Mathf.Abs(dir.x);
+        float ay = Mathf.Abs(dir.y);
+        if (ax > ay) return dir.x >= 0 ? Vector2.right : Vector2.left;
+        return dir.y >= 0 ? Vector2.up : Vector2.down;
+    }
+
+    void UpdateShieldHandByFacing(Vector2 facing4)
+    {
+        Transform target = shieldHand;
+
+        if (facing4 == Vector2.up) target = handUp ?? target;
+        else if (facing4 == Vector2.down) target = handDown ?? target;
+        else if (facing4 == Vector2.left) target = handLeft ?? target;
+        else if (facing4 == Vector2.right) target = handRight ?? target;
+
+        if (target != null && target != shieldHand)
+        {
+            shieldHand = target;
+            if (shieldObject != null)
+                shieldObject.SendMessage("SetPivot", shieldHand, SendMessageOptions.DontRequireReceiver);
+        }
+    }
+
+    void UpdateShieldFollow()
+    {
+        if (currentShield == null || shieldHand == null) return;
+
+        if (lockFacing)
+        {
+            currentShield.transform.position = shieldHand.position;
+            currentShield.transform.rotation = lockedRotation;
         }
         else
         {
-            isBlocking = false;
+            currentShield.transform.position = shieldHand.position;
+            currentShield.transform.rotation = shieldHand.rotation;
         }
     }
+    #endregion
 
-    void InitializeShieldHand()
-    {
-        if (shieldHand == null)
-        {
-            GameObject hand = new GameObject("ShieldHand");
-            hand.transform.parent = transform;
-            hand.transform.localPosition = new Vector3(-0.3f, 0.2f, 0); // ×óÊÖÎ»ÖÃ
-            shieldHand = hand.transform;
-        }
-    }
-
+    #region è¾“å…¥ï¼ˆä»…å³é”®ï¼‰
     void HandleInput()
     {
-        // ·ÀÓùÊäÈë£¨Êó±êÓÒ¼ü»ò×óShift£©
-        if (Input.GetMouseButtonDown(1) || Input.GetKeyDown(KeyCode.LeftShift))
-        {
-            StartBlocking();
-        }
+        if (Input.GetMouseButtonDown(1)) StartBlocking();
+        if (Input.GetMouseButtonUp(1)) StopBlocking();
 
-        if (Input.GetMouseButtonUp(1) || Input.GetKeyUp(KeyCode.LeftShift))
-        {
-            StopBlocking();
-        }
-
-        // µ¯·´ÊäÈë£¨ÔÚ·ÀÓùÊ±°´¹¥»÷¼ü£©
         if (isBlocking && (Input.GetMouseButtonDown(0) || Input.GetKeyDown(KeyCode.Space)))
-        {
             TryParry();
-        }
     }
 
     void StartBlocking()
@@ -83,7 +168,10 @@ public class ShieldController : MonoBehaviour
         shieldObject.StartBlock();
         isHoldingBlock = true;
 
-        // ÏûºÄ³õÊ¼ÄÍÁ¦
+        lockFacing = true;
+        lockedFacing4 = ToFacing4(move.GetFacing4Dir());
+        lockedRotation = shieldHand.rotation;
+
         playerStamina -= shieldObject.shieldData.blockStaminaCost * 0.5f;
     }
 
@@ -93,107 +181,72 @@ public class ShieldController : MonoBehaviour
 
         shieldObject.StopBlock();
         isHoldingBlock = false;
+        lockFacing = false;
     }
 
     void TryParry()
     {
-        if (shieldObject != null)
-        {
-            // ¿ÉÒÔÔÚÕâÀïÌí¼Óµ¯·´µÄÌØÊâÂß¼­
-            Debug.Log("³¢ÊÔµ¯·´");
-
-            // ±ÈÈç£º¿ìËÙ°´Á½´Î·ÀÓù¼ü´¥·¢µ¯·´
-            StartCoroutine(ParryAttemptRoutine());
-        }
+        if (shieldObject != null) StartCoroutine(ParryAttemptRoutine());
     }
 
     IEnumerator ParryAttemptRoutine()
     {
-        // µ¯·´Âß¼­Ê¾Àı
         yield return new WaitForSeconds(0.1f);
-        // µ¯·´³É¹¦»òÊ§°ÜµÄ´¦Àí
     }
+    #endregion
 
+    #region è€åŠ›
     void UpdateStamina()
     {
-        // ³ÖĞø·ÀÓùÏûºÄÄÍÁ¦
-        if (isHoldingBlock && shieldObject != null && isBlocking)
+        if (isHoldingBlock && isBlocking)
         {
-            float staminaCost = shieldObject.shieldData.blockStaminaCost * Time.deltaTime;
-            playerStamina = Mathf.Max(0, playerStamina - staminaCost);
-
-            // ÄÍÁ¦ºÄ¾¡×Ô¶¯Í£Ö¹·ÀÓù
-            if (playerStamina <= 0)
-            {
-                StopBlocking();
-            }
+            float cost = shieldObject.shieldData.blockStaminaCost * Time.deltaTime;
+            playerStamina = Mathf.Max(0, playerStamina - cost);
+            if (playerStamina <= 0) StopBlocking();
         }
         else if (!isHoldingBlock && playerStamina < 100f)
         {
-            // »Ö¸´ÄÍÁ¦
             playerStamina = Mathf.Min(100f, playerStamina + staminaRecoveryRate * Time.deltaTime);
         }
     }
+    #endregion
 
+    #region æ¸²æŸ“å±‚çº§
+    void UpdateShieldRenderOrder(Vector2 facing4)
+    {
+        if (currentShield == null) return;
+
+        int order = (facing4 == Vector2.up) ? behindPlayerOrder : frontPlayerOrder;
+
+        var srs = currentShield.GetComponentsInChildren<SpriteRenderer>(true);
+        for (int i = 0; i < srs.Length; i++)
+            srs[i].sortingOrder = order;
+    }
+    #endregion
+
+    #region è£…å¤‡
     public void EquipShield(GameObject prefab)
     {
-        // ÒÆ³ı¾É¶ÜÅÆ
-        if (currentShield != null)
-        {
-            Destroy(currentShield);
-        }
+        if (currentShield != null) Destroy(currentShield);
 
-        // ÊµÀı»¯ĞÂ¶ÜÅÆ
-        currentShield = Instantiate(prefab, shieldHand.position, shieldHand.rotation, shieldHand);
+        currentShield = Instantiate(prefab, Vector3.zero, Quaternion.identity);
         shieldObject = currentShield.GetComponent<ShieldObject>();
 
         if (shieldObject == null)
         {
-            Debug.LogError("¶ÜÅÆÔ¤ÖÆÌåÈ±ÉÙShieldObject×é¼ş");
+            Destroy(currentShield);
+            currentShield = null;
             return;
         }
 
-        // ÉèÖÃÍæ¼ÒÒıÓÃ
         shieldObject.SetPlayerTransform(transform);
+        shieldObject.SendMessage("SetPivot", shieldHand, SendMessageOptions.DontRequireReceiver);
 
-        // µ÷ÕûÎ»ÖÃ
-        AdjustShieldPosition();
-
-        Debug.Log($"ÒÑ×°±¸¶ÜÅÆ: {shieldObject.shieldData.shieldName}");
+        UpdateShieldFollow();
+        UpdateShieldRenderOrder(ToFacing4(move.GetFacing4Dir()));
     }
+    #endregion
 
-    void AdjustShieldPosition()
-    {
-        if (currentShield == null || shieldObject == null) return;
-
-        // ¿ÉÒÔ¸ù¾İ¶ÜÅÆÊı¾İµ÷ÕûÎ»ÖÃ
-        if (shieldObject.shieldData != null)
-        {
-            currentShield.transform.localPosition = shieldObject.shieldData.shieldOffset;
-        }
-    }
-
-    // Ìí¼Ó IsBlocking ¹«¹²·½·¨
-    public bool IsBlocking()
-    {
-        return isBlocking;
-    }
-
-    // Ìí¼Ó»ñÈ¡¶ÜÅÆ¶ÔÏóµÄ·½·¨£¨¹©ÆäËû½Å±¾µ÷ÓÃ£©
-    public ShieldObject GetShieldObject()
-    {
-        return shieldObject;
-    }
-
-    // »ñÈ¡¶ÜÅÆĞÅÏ¢£¨ÓÃÓÚUIÏÔÊ¾£©
-    public string GetShieldInfo()
-    {
-        if (shieldObject == null || shieldObject.shieldData == null)
-            return "Î´×°±¸¶ÜÅÆ";
-
-        return $"{shieldObject.shieldData.shieldName}\n" +
-               $"ÄÍ¾Ã: {shieldObject.GetCurrentDurability():F0}/{shieldObject.shieldData.maxDurability}\n" +
-               $"ÉËº¦¼õÃâ: {shieldObject.shieldData.damageReduction:P0}\n" +
-               $"·ÀÓù½Ç¶È: {shieldObject.shieldData.blockAngle}¡ã";
-    }
+    public bool IsBlocking() => isBlocking;
+    public ShieldObject GetShieldObject() => shieldObject;
 }

@@ -1,31 +1,47 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections;
 
 public class WeaponObject : MonoBehaviour
 {
-    [Header("ÎäÆ÷Êı¾İÅäÖÃ")]
+    [Header("æ­¦å™¨æ•°æ®")]
     public WeaponData weaponData;
 
-    [Header("×é¼şÒıÓÃ")]
+    [Header("ç»„ä»¶")]
     private SpriteRenderer spriteRenderer;
     private Collider2D weaponCollider;
     private AudioSource audioSource;
 
-    [Header("×´Ì¬")]
-    private bool isAttacking = false;
-    private bool canDamage = false; // ÉËº¦Ö¡¿ØÖÆ
-    private float currentCooldown = 0f;
+    [Header("çŠ¶æ€")]
+    private bool isAttacking;
+    private bool canDamage;
     private Transform handlePoint;
 
-    #region ³õÊ¼»¯
-    void Awake()
-    {
-        InitializeComponents();
-        FindHandlePoint();
-        ApplyWeaponData();
-    }
+    // ç»•æŒ‚è½½ç‚¹æ—‹è½¬/ä½ç§»
+    private Transform pivot;
 
-    void InitializeComponents()
+    // âœ… å½“å‰æ”»å‡»ä¼¤å®³å€ç‡ï¼ˆæŒ¥ç =1ï¼Œçªåˆº=thrustDamageMultiplierï¼‰
+    private float currentDamageMultiplier = 1f;
+
+    [Header("çªåˆºå‚æ•°ï¼ˆç‹¬ç«‹äºæŒ¥ç ï¼‰")]
+    [Tooltip("çªåˆºè·ç¦»ï¼ˆä¸–ç•Œå•ä½ï¼‰ã€‚å¦‚æœå‹¾é€‰ useWeaponRangeAsBaseï¼Œåˆ™è¿™é‡Œæ˜¯å€ç‡ã€‚")]
+    public float thrustDistance = 1.2f;
+
+    [Tooltip("çªåˆºå‰åˆºæ—¶é—´ï¼ˆç§’ï¼‰ã€‚è¶Šå°è¶Šå¿«ã€‚")]
+    public float thrustForwardTime = 0.08f;
+
+    [Tooltip("çªåˆºå›æ”¶æ—¶é—´ï¼ˆç§’ï¼‰ã€‚è¶Šå°è¶Šå¿«ã€‚")]
+    public float thrustReturnTime = 0.06f;
+
+    [Tooltip("çªåˆºä¼¤å®³å€ç‡ï¼š1=ç­‰äºåŸºç¡€ä¼¤å®³ï¼Œ1.5=æ›´é«˜ã€‚")]
+    public float thrustDamageMultiplier = 1.3f;
+
+    [Tooltip("æ˜¯å¦ä»¥ weaponData.attackRange ä¸ºåŸºç¡€ï¼štrue æ—¶ thrustDistance ä»£è¡¨å€ç‡ï¼ˆä¾‹å¦‚ 1.2=attackRange*1.2ï¼‰")]
+    public bool useWeaponRangeAsBase = true;
+
+    [Tooltip("çªåˆºçš„æ’å€¼æ›²çº¿ï¼ˆé»˜è®¤æ›´é¡ºæ»‘ï¼‰")]
+    public AnimationCurve thrustCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
+
+    void Awake()
     {
         spriteRenderer = GetComponent<SpriteRenderer>();
         weaponCollider = GetComponent<Collider2D>();
@@ -35,322 +51,184 @@ public class WeaponObject : MonoBehaviour
         {
             audioSource = gameObject.AddComponent<AudioSource>();
             audioSource.playOnAwake = false;
-            audioSource.spatialBlend = 0.7f; // 3DÒôĞ§»ìºÏ
         }
 
-        // ÅäÖÃÅö×²Ìå
         if (weaponCollider != null)
         {
             weaponCollider.isTrigger = true;
-            weaponCollider.enabled = false; // Ä¬ÈÏ¹Ø±Õ
-        }
-    }
-
-    void FindHandlePoint()
-    {
-        handlePoint = transform.Find("HandlePoint");
-        if (handlePoint == null)
-        {
-            Debug.LogWarning($"{gameObject.name} È±ÉÙHandlePoint£¬½«Ê¹ÓÃ×ÔÉí×÷Îª²Î¿¼µã");
-            handlePoint = transform;
-        }
-    }
-
-    // Ó¦ÓÃÎäÆ÷Êı¾İµ½¸÷¸ö×é¼ş
-    void ApplyWeaponData()
-    {
-        if (weaponData == null)
-        {
-            Debug.LogError("WeaponDataÎ´·ÖÅä£¡ÇëÔÚInspectorÖĞÅäÖÃ");
-            return;
-        }
-
-        // 1. Ó¦ÓÃÍâ¹Û
-        if (spriteRenderer != null)
-        {
-            spriteRenderer.color = weaponData.weaponColor;
-            if (weaponData.weaponIcon != null)
-            {
-                spriteRenderer.sprite = weaponData.weaponIcon;
-            }
-        }
-
-        // 2. Ó¦ÓÃÅö×²Ìå´óĞ¡
-        if (weaponCollider != null)
-        {
-            UpdateColliderSize();
-        }
-
-        // 3. ³õÊ¼»¯ÀäÈ´Ê±¼ä
-        currentCooldown = weaponData.GetActualCooldown();
-
-        Debug.Log($"ÎäÆ÷³õÊ¼»¯: {weaponData.weaponName}, ÉËº¦: {weaponData.GetActualDamage()}, ÀäÈ´: {currentCooldown}s");
-    }
-
-    void UpdateColliderSize()
-    {
-        if (weaponCollider is BoxCollider2D boxCollider)
-        {
-            boxCollider.size = new Vector2(weaponData.attackRange, 0.3f);
-            boxCollider.offset = new Vector2(weaponData.attackRange * 0.5f, 0);
-        }
-        else if (weaponCollider is CircleCollider2D circleCollider)
-        {
-            circleCollider.radius = weaponData.attackRange * 0.5f;
-        }
-    }
-    #endregion
-
-    #region ¹¥»÷ÏµÍ³
-    public bool CanAttack()
-    {
-        return !isAttacking;
-    }
-
-    public void StartAttack()
-    {
-        if (isAttacking || weaponData == null) return;
-
-        StartCoroutine(AttackSequence());
-    }
-
-    private IEnumerator AttackSequence()
-    {
-        isAttacking = true;
-        canDamage = false;
-
-        // ½×¶Î1: ¹¥»÷Ç°Ò¡£¨¿ÉÑ¡£©
-        yield return null;
-
-        // ½×¶Î2: »Ó¶¯¶¯»­
-        yield return StartCoroutine(SwingAnimation());
-
-        // ½×¶Î3: ÀäÈ´»Ö¸´
-        yield return StartCoroutine(CooldownRecovery());
-
-        isAttacking = false;
-    }
-
-    private IEnumerator SwingAnimation()
-    {
-        // ²¥·Å»Ó¶¯ÒôĞ§
-        PlaySwingSound();
-
-        // ÆôÓÃÅö×²Ìå£¨ÔÚ¹¥»÷µÄÓĞĞ§Ö¡£©
-        canDamage = true;
-        if (weaponCollider != null)
-        {
-            weaponCollider.enabled = true;
-        }
-
-        // »Ó¶¯¶¯»­
-        float elapsed = 0f;
-        float swingDuration = weaponData.swingDuration;
-        Quaternion startRot = transform.localRotation;
-        Quaternion endRot = Quaternion.Euler(0, 0, weaponData.swingAngle);
-
-        while (elapsed < swingDuration)
-        {
-            elapsed += Time.deltaTime;
-            float t = elapsed / swingDuration;
-            t = weaponData.swingCurve.Evaluate(t); // Ê¹ÓÃÅäÖÃµÄÇúÏß
-
-            transform.localRotation = Quaternion.Slerp(startRot, endRot, t);
-            yield return null;
-        }
-
-        // ¶ÌÔİÍ£¶ÙÔÚ×î´ó½Ç¶È
-        yield return new WaitForSeconds(0.05f);
-
-        // ½ûÓÃÉËº¦
-        canDamage = false;
-        if (weaponCollider != null)
-        {
             weaponCollider.enabled = false;
         }
 
-        // ¿ìËÙÊÕ»Ø
-        elapsed = 0f;
-        float returnDuration = swingDuration * 0.3f;
-        while (elapsed < returnDuration)
-        {
-            elapsed += Time.deltaTime;
-            transform.localRotation = Quaternion.Slerp(endRot, startRot, elapsed / returnDuration);
-            yield return null;
-        }
+        handlePoint = transform.Find("HandlePoint");
+        if (handlePoint == null) handlePoint = transform;
 
-        // È·±£ÍêÈ«¸´Î»
-        transform.localRotation = startRot;
-    }
-
-    private IEnumerator CooldownRecovery()
-    {
-        float cooldownTime = weaponData.GetActualCooldown();
-        float elapsed = 0f;
-
-        while (elapsed < cooldownTime)
-        {
-            elapsed += Time.deltaTime;
-            // ÕâÀï¿ÉÒÔ¸üĞÂUIÏÔÊ¾ÀäÈ´½ø¶È
-            // float progress = elapsed / cooldownTime;
-            yield return null;
-        }
-    }
-
-    private void PlaySwingSound()
-    {
-        if (weaponData.swingSound != null && audioSource != null)
-        {
-            audioSource.clip = weaponData.swingSound;
-            audioSource.Play();
-        }
-    }
-    #endregion
-
-    #region Åö×²¼ì²âÓëÉËº¦
-    void OnTriggerEnter2D(Collider2D other)
-    {
-        if (!canDamage || weaponData == null) return;
-
-        if (other.CompareTag("Enemy"))
-        {
-            ApplyDamage(other);
-        }
-    }
-
-    void ApplyDamage(Collider2D enemy)
-    {
-        // ¼ÆËã×îÖÕÉËº¦
-        float finalDamage = weaponData.GetActualDamage();
-
-        // »ñÈ¡ÃüÖĞµã
-        Vector2 hitPoint = enemy.ClosestPoint(transform.position);
-
-        // »ñÈ¡µĞÈËÉúÃü×é¼ş
-        EnemyHealth enemyHealth = enemy.GetComponent<EnemyHealth>();
-        if (enemyHealth != null)
-        {
-            enemyHealth.TakeDamage(finalDamage, hitPoint);
-            Debug.Log($"{weaponData.weaponName} ¶Ô {enemy.name} Ôì³É {finalDamage} µãÉËº¦");
-        }
-        else
-        {
-            Debug.LogWarning($"µĞÈË {enemy.name} Ã»ÓĞEnemyHealth×é¼ş");
-        }
-
-        // ²¥·ÅÃüÖĞÒôĞ§
-        PlayHitSound(hitPoint);
-
-        // ¿ÉÑ¡£º´¥·¢ÃüÖĞÌØĞ§
-        SpawnHitEffect(hitPoint);
-
-        // ¿ÉÑ¡£ºÓ¦ÓÃ»÷ÍË
-        ApplyKnockback(enemy, hitPoint);
-    }
-
-    private void PlayHitSound(Vector2 position)
-    {
-        if (weaponData.hitSound != null)
-        {
-            AudioSource.PlayClipAtPoint(weaponData.hitSound, position, 0.5f);
-        }
-    }
-
-    private void SpawnHitEffect(Vector2 position)
-    {
-        // ÕâÀï¿ÉÒÔÊµÀı»¯ÃüÖĞÌØĞ§
-        // GameObject effect = Instantiate(hitEffectPrefab, position, Quaternion.identity);
-        // Destroy(effect, 1f);
-    }
-
-    private void ApplyKnockback(Collider2D enemy, Vector2 hitPoint)
-    {
-        Rigidbody2D rb = enemy.GetComponent<Rigidbody2D>();
-        if (rb != null)
-        {
-            Vector2 knockbackDir = (enemy.transform.position - transform.position).normalized;
-            float knockbackForce = weaponData.damage * 0.5f; // ¸ù¾İÉËº¦¼ÆËã»÷ÍËÁ¦
-            rb.AddForce(knockbackDir * knockbackForce, ForceMode2D.Impulse);
-        }
-    }
-    #endregion
-
-    #region ¹«¹²·½·¨
-    public float GetDamage()
-    {
-        return weaponData != null ? weaponData.GetActualDamage() : 0f;
-    }
-
-    public float GetCooldown()
-    {
-        return weaponData != null ? weaponData.GetActualCooldown() : 1f;
-    }
-
-    public float GetAttackRange()
-    {
-        return weaponData != null ? weaponData.attackRange : 1f;
-    }
-
-    public Vector3 GetHandlePosition()
-    {
-        return handlePoint.position;
-    }
-
-    public Vector3 GetHandleLocalPosition()
-    {
-        return handlePoint.localPosition;
-    }
-
-    // ¶¯Ì¬¸üĞÂÎäÆ÷Êı¾İ£¨ÓÃÓÚ×°±¸Éı¼¶µÈ£©
-    public void UpdateWeaponData(WeaponData newData)
-    {
-        weaponData = newData;
         ApplyWeaponData();
     }
 
-    // »ñÈ¡ÎäÆ÷ĞÅÏ¢£¨ÓÃÓÚUIÏÔÊ¾£©
-    public string GetWeaponInfo()
-    {
-        if (weaponData == null) return "ÎŞÎäÆ÷";
-
-        return $"{weaponData.weaponName}\n" +
-               $"ÉËº¦: {weaponData.GetActualDamage()}\n" +
-               $"¹¥»÷ËÙ¶È: {weaponData.attackSpeed}\n" +
-               $"ÀäÈ´: {weaponData.GetActualCooldown():F1}s";
-    }
-    #endregion
-
-    #region ±à¼­Æ÷¹¤¾ß
-    void OnValidate()
-    {
-        // ÔÚ±à¼­Æ÷ÖĞÊµÊ±Ô¤ÀÀÎäÆ÷Êı¾İĞ§¹û
-        if (Application.isPlaying) return;
-
-        if (weaponData != null && spriteRenderer != null)
-        {
-            spriteRenderer.color = weaponData.weaponColor;
-        }
-    }
-
-    // ÔÚSceneÊÓÍ¼ÖĞÏÔÊ¾¹¥»÷·¶Î§
-    void OnDrawGizmosSelected()
+    void ApplyWeaponData()
     {
         if (weaponData == null) return;
 
-        Gizmos.color = Color.yellow;
+        if (spriteRenderer != null && weaponData.weaponIcon != null)
+            spriteRenderer.sprite = weaponData.weaponIcon;
 
-        // »æÖÆ¹¥»÷·¶Î§
-        Vector3 rangeEnd = transform.position + transform.right * weaponData.attackRange;
-        Gizmos.DrawLine(transform.position, rangeEnd);
-        Gizmos.DrawWireSphere(rangeEnd, 0.1f);
+        // å¯é€‰ï¼šæ ¹æ® attackRange è‡ªåŠ¨ç»™ä¸€ä¸ªé»˜è®¤çªåˆºè·ç¦»å€ç‡
+        // ï¼ˆä½ ä¹Ÿå¯ä»¥æ‰‹åŠ¨åœ¨ Inspector è°ƒ thrustDistanceï¼‰
+    }
 
-        // »æÖÆHandlePointÎ»ÖÃ
-        if (handlePoint != null)
+    #region Pivot
+    public void SetPivot(Transform weaponHand)
+    {
+        pivot = weaponHand;
+    }
+    #endregion
+
+    #region çŠ¶æ€
+    public bool CanAttack() => !isAttacking;
+    #endregion
+
+    #region ===== æ™®é€šæŒ¥ç ï¼ˆé¼ æ ‡å·¦é”®ï¼‰=====
+    public void StartAttack()
+    {
+        if (isAttacking || pivot == null || weaponData == null) return;
+        StartCoroutine(SlashRoutine());
+    }
+
+    IEnumerator SlashRoutine()
+    {
+        isAttacking = true;
+
+        // æŒ¥ç ä¼¤å®³å€ç‡=1
+        currentDamageMultiplier = 1f;
+
+        canDamage = true;
+        if (weaponCollider != null) weaponCollider.enabled = true;
+
+        Quaternion startRot = pivot.localRotation;
+        Quaternion endRot = startRot * Quaternion.Euler(0, 0, weaponData.swingAngle);
+
+        float elapsed = 0f;
+        float dur = Mathf.Max(0.0001f, weaponData.swingDuration);
+
+        while (elapsed < dur)
         {
-            Gizmos.color = Color.red;
-            Gizmos.DrawWireSphere(handlePoint.position, 0.05f);
-            Gizmos.DrawLine(handlePoint.position, transform.position);
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / dur);
+            float p = weaponData.swingCurve.Evaluate(t);
+            pivot.localRotation = Quaternion.Slerp(startRot, endRot, p);
+            yield return null;
         }
+
+        yield return new WaitForSeconds(0.05f);
+
+        canDamage = false;
+        if (weaponCollider != null) weaponCollider.enabled = false;
+
+        // æ”¶å›
+        elapsed = 0f;
+        float backTime = dur * 0.3f;
+        backTime = Mathf.Max(0.0001f, backTime);
+
+        while (elapsed < backTime)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / backTime);
+            pivot.localRotation = Quaternion.Slerp(endRot, startRot, t);
+            yield return null;
+        }
+
+        pivot.localRotation = startRot;
+        isAttacking = false;
+    }
+    #endregion
+
+    #region ===== çªåˆºï¼ˆç©ºæ ¼ï¼‰=====
+    public void StartThrust()
+    {
+        if (isAttacking || pivot == null || weaponData == null) return;
+        StartCoroutine(ThrustRoutine());
+    }
+
+    IEnumerator ThrustRoutine()
+    {
+        isAttacking = true;
+
+        // âœ… çªåˆºä¼¤å®³å€ç‡
+        currentDamageMultiplier = Mathf.Max(0f, thrustDamageMultiplier);
+
+        canDamage = true;
+        if (weaponCollider != null) weaponCollider.enabled = true;
+
+        // å½“å‰æœå‘ï¼ˆæŒ‚è½½ç‚¹çš„å³æ–¹å‘ï¼‰
+        Vector3 dir = pivot.right.normalized;
+
+        // ç”¨ pivot çš„â€œæœ¬åœ°ä½ç½®â€åšæ’å€¼ï¼ˆæ³¨æ„ï¼šä½ çš„ WeaponHand åœ¨ Player å±‚çº§ä¸‹ï¼Œæœ¬åœ°åæ ‡æ›´ç¨³å®šï¼‰
+        Vector3 startPos = pivot.localPosition;
+
+        float baseRange = Mathf.Max(0.0001f, weaponData.attackRange);
+        float dist = useWeaponRangeAsBase ? (baseRange * thrustDistance) : thrustDistance;
+        dist = Mathf.Max(0f, dist);
+
+        Vector3 targetPos = startPos + dir * dist;
+
+        float forwardTime = Mathf.Max(0.0001f, thrustForwardTime);
+        float returnTime = Mathf.Max(0.0001f, thrustReturnTime);
+
+        // å‘å‰çªåˆº
+        float elapsed = 0f;
+        while (elapsed < forwardTime)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / forwardTime);
+            float p = thrustCurve.Evaluate(t);
+            pivot.localPosition = Vector3.LerpUnclamped(startPos, targetPos, p);
+            yield return null;
+        }
+
+        // å¯é€‰ï¼šé¡¶ç‚¹åœé¡¿
+        yield return new WaitForSeconds(0.03f);
+
+        // ç»“æŸä¼¤å®³å¸§ï¼ˆä¹Ÿå¯ä»¥è®©çªåˆºå…¨ç¨‹éƒ½æœ‰ä¼¤å®³ï¼Œè¿™é‡ŒæŒ‰â€œåªåœ¨å‰åˆºé˜¶æ®µæœ‰æ•ˆâ€ï¼‰
+        canDamage = false;
+        if (weaponCollider != null) weaponCollider.enabled = false;
+
+        // å›æ”¶
+        elapsed = 0f;
+        while (elapsed < returnTime)
+        {
+            elapsed += Time.deltaTime;
+            float t = Mathf.Clamp01(elapsed / returnTime);
+            float p = thrustCurve.Evaluate(t);
+            pivot.localPosition = Vector3.LerpUnclamped(targetPos, startPos, p);
+            yield return null;
+        }
+
+        pivot.localPosition = startPos;
+        isAttacking = false;
+    }
+    #endregion
+
+    #region ç¢°æ’ä¼¤å®³
+    void OnTriggerEnter2D(Collider2D other)
+    {
+        if (!canDamage || weaponData == null) return;
+        if (!other.CompareTag("Enemy")) return;
+
+        EnemyHealth hp = other.GetComponent<EnemyHealth>();
+        if (hp != null)
+        {
+            // âœ… æœ€ç»ˆä¼¤å®³ = åŸºç¡€ä¼¤å®³ * å½“å‰æ”»å‡»å€ç‡ï¼ˆæŒ¥ç 1 / çªåˆºthrustDamageMultiplierï¼‰
+            float dmg = weaponData.damage * currentDamageMultiplier;
+            Vector2 hitPoint = other.ClosestPoint(transform.position);
+            hp.TakeDamage(dmg, hitPoint);
+        }
+    }
+    #endregion
+
+    #region å…¬å…±
+    public Vector3 GetHandleLocalPosition()
+    {
+        return handlePoint != null ? handlePoint.localPosition : Vector3.zero;
     }
     #endregion
 }

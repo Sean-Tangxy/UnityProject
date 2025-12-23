@@ -210,7 +210,7 @@ MonoBehaviour:
   weaponData:
     weaponName: "\u957F\u67AA"
     weaponIcon: {fileID: 1886076291938681571, guid: cca1f894ef6bc264f802c55745e001b4, type: 3}
-    damage: 20
+    damage: 5
     attackRange: 2
     attackSpeed: 5
     attackCooldown: 0.2
@@ -244,3 +244,32 @@ MonoBehaviour:
     gripOffset: {x: 0, y: 0}
     swingSound: {fileID: 0}
     hitSound: {fileID: 0}
+  thrustDistance: 0.3
+  thrustForwardTime: 0.1
+  thrustReturnTime: 0.1
+  thrustDamageMultiplier: 1
+  useWeaponRangeAsBase: 1
+  thrustCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 0
+      outSlope: 0
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4

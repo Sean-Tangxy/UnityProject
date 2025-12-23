@@ -47,6 +47,10 @@ public class DirectionalMovement : MonoBehaviour
     private bool isMoving;
     private bool isRunning;
 
+    // ✅ 新增：四向朝向（供武器/挂载点用）
+    // 默认朝下
+    public Vector2 LastFacingDir { get; private set; } = Vector2.down;
+
     // 物理检测缓存
     private readonly RaycastHit2D[] castResults = new RaycastHit2D[8];
     private ContactFilter2D contactFilter;
@@ -57,7 +61,6 @@ public class DirectionalMovement : MonoBehaviour
         rb = GetComponent<Rigidbody2D>();
         mainCamera = Camera.main;
 
-        // 物理建议（像素2D）
         rb.gravityScale = 0f;
         rb.freezeRotation = true;
         rb.interpolation = RigidbodyInterpolation2D.Interpolate;
@@ -99,25 +102,20 @@ public class DirectionalMovement : MonoBehaviour
     // ✅ 八方向输入：允许斜角移动
     void UpdateInputValues()
     {
-        // 获取原始输入值
         float rawHorizontal = 0f;
         float rawVertical = 0f;
 
-        // 水平输入
         if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) rawHorizontal -= 1f;
         if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) rawHorizontal += 1f;
 
-        // 垂直输入
         if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) rawVertical -= 1f;
         if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) rawVertical += 1f;
 
-        // 处理输入值
         if (allowDiagonalMovement)
         {
             horizontal = rawHorizontal;
             vertical = rawVertical;
 
-            // 如果需要标准化对角线速度
             if (normalizeDiagonal && horizontal != 0f && vertical != 0f)
             {
                 Vector2 dir = new Vector2(horizontal, vertical).normalized;
@@ -127,7 +125,6 @@ public class DirectionalMovement : MonoBehaviour
         }
         else
         {
-            // 不允许斜角移动：优先水平或垂直
             if (Mathf.Abs(rawHorizontal) > Mathf.Abs(rawVertical))
             {
                 horizontal = rawHorizontal;
@@ -146,6 +143,24 @@ public class DirectionalMovement : MonoBehaviour
         }
 
         isMoving = (horizontal != 0f || vertical != 0f);
+
+        // ✅ 新增：只要有输入，就更新“朝向(四向)”
+        if (isMoving)
+        {
+            LastFacingDir = To4Dir(new Vector2(horizontal, vertical));
+        }
+    }
+
+    // ✅ 把任意方向归并为四向（斜向取“更强轴”）
+    static Vector2 To4Dir(Vector2 dir)
+    {
+        if (dir.sqrMagnitude < 0.0001f) return Vector2.down;
+
+        // 注意：你 normalizeDiagonal=true 时斜向是 0.707/0.707，所以用 abs 比较即可
+        if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
+            return dir.x >= 0 ? Vector2.right : Vector2.left;
+        else
+            return dir.y >= 0 ? Vector2.up : Vector2.down;
     }
 
     void HandleRunInput()
@@ -153,13 +168,11 @@ public class DirectionalMovement : MonoBehaviour
         isRunning = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) && isMoving;
     }
 
-    // ✅ 碰撞移动：rb.Cast + MovePosition（撞墙不抖）
     void DoMoveWithCollision()
     {
         Vector2 dir = new Vector2(horizontal, vertical);
         if (dir == Vector2.zero) return;
 
-        // 如果对角线未标准化，需要在这里处理速度
         if (allowDiagonalMovement && !normalizeDiagonal && horizontal != 0f && vertical != 0f)
         {
             dir = dir.normalized;
@@ -187,12 +200,10 @@ public class DirectionalMovement : MonoBehaviour
         animator.SetBool(isMovingParam, isMoving);
         animator.SetBool(isRunningParam, isRunning && isMoving);
 
-        // 对于八方向动画，直接使用输入值（包括斜角）
         animator.SetFloat(moveXParam, horizontal);
         animator.SetFloat(moveYParam, vertical);
     }
 
-    // ✅ 像素对齐相机（正交像素风必备）
     void UpdateCameraPixelPerfect()
     {
         if (mainCamera == null || !followCamera) return;
@@ -206,10 +217,10 @@ public class DirectionalMovement : MonoBehaviour
     static Vector3 QuantizeToPixelGrid(Vector3 pos, int ppu)
     {
         if (ppu <= 0) return pos;
-        float step = 1f / ppu; // 100PPU -> 0.01
+        float step = 1f / ppu;
         pos.x = Mathf.Round(pos.x / step) * step;
         pos.y = Mathf.Round(pos.y / step) * step;
-        return pos; // z 保持
+        return pos;
     }
 
     void QuitGame()
@@ -221,13 +232,18 @@ public class DirectionalMovement : MonoBehaviour
 #endif
     }
 
-    // 辅助方法：获取当前移动方向（八方向）
+    // ✅ 给外部用：当前四向朝向
+    public Vector2 GetFacing4Dir()
+    {
+        return LastFacingDir;
+    }
+
+    // 你原来的辅助方法保留
     public Vector2 GetMovementDirection()
     {
         return new Vector2(horizontal, vertical).normalized;
     }
 
-    // 辅助方法：获取当前移动角度（0-360度）
     public float GetMovementAngle()
     {
         if (!isMoving) return 0f;

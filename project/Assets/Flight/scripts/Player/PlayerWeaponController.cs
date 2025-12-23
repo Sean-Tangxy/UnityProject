@@ -1,25 +1,59 @@
-using UnityEngine;
+ï»¿using UnityEngine;
+using System.Collections;
 
+[RequireComponent(typeof(DirectionalMovement))]
 public class PlayerWeaponController : MonoBehaviour
 {
-    [Header("ÎäÆ÷ÅäÖÃ")]
+    [Header("æ­¦å™¨é…ç½®")]
     public GameObject weaponPrefab;
     public WeaponData currentWeaponData;
 
-    [Header("¹ÒÔØµã")]
-    public Transform weaponHand;
+    [Header("æŒ‚è½½ç‚¹å‘½åï¼ˆPlayerå­ç‰©ä½“ï¼‰")]
+    public string handUpName = "WeaponHand_up";
+    public string handDownName = "WeaponHand_down";
+    public string handLeftName = "WeaponHand_left";
+    public string handRightName = "WeaponHand_right";
 
-    // ×´Ì¬
+    [Header("è‡ªåŠ¨è¯†åˆ«")]
+    public bool autoFindHands = true;
+
+    [Header("æ¸²æŸ“å±‚çº§ï¼ˆåœ°æ¿=0ï¼Œäººç‰©=2ï¼‰")]
+    public int floorOrder = 0;
+    public int playerOrder = 2;
+    public int behindPlayerOrder = 1; // äººç‰©å
+    public int frontPlayerOrder = 3;  // äººç‰©å‰
+
+    // å½“å‰æŒ‚è½½ç‚¹
+    private Transform weaponHand;
+
+    // 4å‘æŒ‚è½½ç‚¹
+    private Transform handUp, handDown, handLeft, handRight;
+
+    // ä¾èµ–ï¼šç§»åŠ¨è„šæœ¬
+    private DirectionalMovement move;
+
+    // æ­¦å™¨çŠ¶æ€
     private GameObject currentWeaponInstance;
     private WeaponObject weaponObject;
-    private Vector3 weaponLocalOffset; // ÎäÆ÷±¾µØÆ«ÒÆ
+    private Vector3 weaponLocalOffset;
 
     void Start()
     {
-        // È·±£ÓĞweaponHand
+        move = GetComponent<DirectionalMovement>();
+
+        if (autoFindHands) CacheHands();
+
+        // é»˜è®¤æœä¸‹
+        weaponHand = handDown != null ? handDown :
+                     handRight != null ? handRight :
+                     handLeft != null ? handLeft :
+                     handUp;
+
         if (weaponHand == null)
         {
-            CreateWeaponHand();
+            Debug.LogError("æœªæ‰¾åˆ° WeaponHand_up/down/left/rightï¼Œè¯·åœ¨Playerå­ç‰©ä½“ä¸‹åˆ›å»ºåŒåç©ºç‰©ä½“ã€‚");
+            enabled = false;
+            return;
         }
 
         if (weaponPrefab != null)
@@ -28,53 +62,205 @@ public class PlayerWeaponController : MonoBehaviour
         }
     }
 
-    void CreateWeaponHand()
+    void CacheHands()
     {
-        GameObject hand = new GameObject("WeaponHand");
-        hand.transform.parent = transform;
-        hand.transform.localPosition = new Vector3(0.5f, 0, 0);
-        weaponHand = hand.transform;
+        handUp = FindChildByName(transform, handUpName);
+        handDown = FindChildByName(transform, handDownName);
+        handLeft = FindChildByName(transform, handLeftName);
+        handRight = FindChildByName(transform, handRightName);
+    }
+
+    Transform FindChildByName(Transform root, string targetName)
+    {
+        var all = root.GetComponentsInChildren<Transform>(true);
+        foreach (var t in all)
+        {
+            if (t.name == targetName) return t;
+        }
+        return null;
     }
 
     void Update()
     {
         HandleInput();
-        UpdateWeaponAim();
 
-        // ¹Ø¼ü£ºÃ¿Ö¡È·±£ÎäÆ÷ÔÚÕıÈ·Î»ÖÃ
-        if (currentWeaponInstance != null)
+        Vector2 facing4 = move.GetFacing4Dir();
+        bool attacking = (weaponObject != null && !weaponObject.CanAttack());
+
+        // âœ… æ”»å‡»ä¸­ä¸åˆ‡æŒ‚è½½ç‚¹ã€ä¸æ›´æ–°ç„å‡†ï¼ˆé¿å…å’ŒæŒ¥ç /çªåˆºæ‰“æ¶ï¼‰
+        if (!attacking)
+        {
+            UpdateWeaponHandByFacing(facing4);
+            UpdateWeaponAim();
+        }
+
+        // âœ… æ¸²æŸ“å±‚çº§ï¼šæ¯å¸§æ›´æ–°ï¼ˆä¸ç®¡æ˜¯å¦æ”»å‡»ï¼‰
+        UpdateWeaponRenderOrder(facing4);
+
+        if (currentWeaponInstance != null && weaponHand != null)
         {
             UpdateWeaponFollow();
         }
     }
 
+    #region è¾“å…¥
+    void HandleInput()
+    {
+        // Fï¼šå¸ä¸‹æ­¦å™¨
+        if (Input.GetKeyDown(KeyCode.F))
+        {
+            UnequipWeapon();
+            return;
+        }
+
+        if (weaponObject == null) return;
+
+        // ç©ºæ ¼ï¼šçªåˆºï¼ˆæœ‰ StartThrust å°±è°ƒç”¨ï¼Œæ²¡æœ‰å°±å›é€€æ™®é€šæ”»å‡»ï¼‰
+        if (Input.GetKeyDown(KeyCode.Space))
+        {
+            TryThrust();
+            return;
+        }
+
+        // é¼ æ ‡å·¦é”®ï¼šæ™®é€šæ”»å‡»ï¼ˆæŒ¥ç ï¼‰
+        if (Input.GetMouseButtonDown(0))
+        {
+            TryAttack();
+        }
+    }
+
+    void TryAttack()
+    {
+        if (weaponObject == null) return;
+        if (weaponObject.CanAttack())
+        {
+            weaponObject.StartAttack();
+        }
+    }
+
+    void TryThrust()
+    {
+        if (weaponObject == null) return;
+        if (!weaponObject.CanAttack()) return;
+
+        weaponObject.SendMessage("StartThrust", SendMessageOptions.DontRequireReceiver);
+        StartCoroutine(ThrustFallbackNextFrame());
+    }
+
+    IEnumerator ThrustFallbackNextFrame()
+    {
+        yield return null;
+        if (weaponObject != null && weaponObject.CanAttack())
+        {
+            weaponObject.StartAttack();
+        }
+    }
+    #endregion
+
+    #region æŒ‚è½½ç‚¹åˆ‡æ¢
+    void UpdateWeaponHandByFacing(Vector2 facing4)
+    {
+        Transform target = weaponHand;
+
+        if (facing4 == Vector2.up) target = handUp != null ? handUp : target;
+        else if (facing4 == Vector2.down) target = handDown != null ? handDown : target;
+        else if (facing4 == Vector2.left) target = handLeft != null ? handLeft : target;
+        else if (facing4 == Vector2.right) target = handRight != null ? handRight : target;
+
+        if (target != null && target != weaponHand)
+        {
+            weaponHand = target;
+
+            // åˆ‡æŒ‚è½½ç‚¹åé‡æ–°ç»‘å®š pivotï¼ˆè®©æ­¦å™¨ç»•æŒ‚è½½ç‚¹è½¬ï¼‰
+            if (weaponObject != null)
+                weaponObject.SetPivot(weaponHand);
+
+            CalculateWeaponOffset();
+            UpdateWeaponFollow();
+        }
+    }
+    #endregion
+
+    #region è·Ÿéšä¸åç§»
     void UpdateWeaponFollow()
     {
-        // ¼ÆËãÎäÆ÷Ó¦¸ÃÔÚÊÀ½ç¿Õ¼äÖĞµÄÎ»ÖÃ
         Vector3 worldOffset = weaponHand.TransformVector(weaponLocalOffset);
         currentWeaponInstance.transform.position = weaponHand.position + worldOffset;
         currentWeaponInstance.transform.rotation = weaponHand.rotation;
     }
 
+    void CalculateWeaponOffset()
+    {
+        if (weaponObject == null) return;
+
+        Vector3 handleLocalPos = weaponObject.GetHandleLocalPosition();
+        weaponLocalOffset = -handleLocalPos;
+
+        if (weaponObject.weaponData != null)
+        {
+            weaponLocalOffset += (Vector3)weaponObject.weaponData.gripOffset;
+        }
+    }
+    #endregion
+
+    #region ç„å‡†
+    void UpdateWeaponAim()
+    {
+        if (weaponHand == null) return;
+        if (Camera.main == null) return;
+
+        Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+        mousePos.z = 0;
+
+        Vector2 direction = (mousePos - transform.position);
+        if (direction.sqrMagnitude < 0.0001f) return;
+
+        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+        weaponHand.rotation = Quaternion.Euler(0, 0, angle);
+    }
+    #endregion
+
+    #region æ¸²æŸ“å±‚çº§
+    void UpdateWeaponRenderOrder(Vector2 facing4)
+    {
+        if (currentWeaponInstance == null) return;
+
+        int order = (facing4 == Vector2.up) ? behindPlayerOrder : frontPlayerOrder;
+
+        // æ­¦å™¨å¯èƒ½æœ‰å¤šä¸ª SpriteRendererï¼ˆä¾‹å¦‚ç‰¹æ•ˆ/å­ç‰©ä½“ï¼‰ï¼Œç»Ÿä¸€è®¾ç½®
+        var srs = currentWeaponInstance.GetComponentsInChildren<SpriteRenderer>(true);
+        for (int i = 0; i < srs.Length; i++)
+        {
+            srs[i].sortingOrder = order;
+        }
+    }
+    #endregion
+
+    #region è£…å¤‡/å¸ä¸‹
     public void EquipWeapon(GameObject prefab, WeaponData customData = null)
     {
-        // ÒÆ³ı¾ÉÎäÆ÷
+        if (weaponHand == null)
+        {
+            Debug.LogError("weaponHand ä¸ºç©ºï¼šæ²¡æœ‰å¯ç”¨çš„æŒ‚è½½ç‚¹ã€‚");
+            return;
+        }
+
         if (currentWeaponInstance != null)
         {
             Destroy(currentWeaponInstance);
         }
 
-        // ÊµÀı»¯ĞÂÎäÆ÷£¨²»Éè¸¸ÎïÌå£¬ÎÒÃÇ×Ô¼º¿ØÖÆÎ»ÖÃ£©
         currentWeaponInstance = Instantiate(prefab, Vector3.zero, Quaternion.identity);
         weaponObject = currentWeaponInstance.GetComponent<WeaponObject>();
 
         if (weaponObject == null)
         {
-            Debug.LogError("ÎäÆ÷Ô¤ÖÆÌåÈ±ÉÙWeaponObject×é¼ş");
+            Debug.LogError("æ­¦å™¨é¢„åˆ¶ä½“ç¼ºå°‘ WeaponObject ç»„ä»¶");
+            Destroy(currentWeaponInstance);
+            currentWeaponInstance = null;
             return;
         }
 
-        // Ó¦ÓÃÎäÆ÷Êı¾İ
         if (customData != null)
         {
             weaponObject.weaponData = customData;
@@ -85,57 +271,27 @@ public class PlayerWeaponController : MonoBehaviour
             weaponObject.weaponData = currentWeaponData;
         }
 
-        // ¼ÆËãÎäÆ÷µÄ±¾µØÆ«ÒÆ
+        weaponObject.SetPivot(weaponHand);
+
         CalculateWeaponOffset();
+        UpdateWeaponFollow();
 
-        Debug.Log($"ÒÑ×°±¸ÎäÆ÷: {weaponObject.GetWeaponInfo()}");
+        // åˆæ¬¡è®¾ç½®æ¸²æŸ“å±‚çº§
+        UpdateWeaponRenderOrder(move.GetFacing4Dir());
     }
 
-    void CalculateWeaponOffset()
+    public void UnequipWeapon()
     {
-        if (weaponObject == null) return;
-
-        // »ñÈ¡ÎäÆ÷µÄÊÖ±úµã£¨Ïà¶ÔÎ»ÖÃ£©
-        Vector3 handleLocalPos = weaponObject.GetHandleLocalPosition();
-
-        // ¼ÆËã·´ÏòÆ«ÒÆ£¨ÈÃÊÖ±úµã¶ÔÆëµ½weaponHand£©
-        weaponLocalOffset = -handleLocalPos;
-
-        // Ó¦ÓÃÎäÆ÷Êı¾İÖĞµÄ¶îÍâÆ«ÒÆ
-        if (weaponObject.weaponData != null)
+        if (currentWeaponInstance != null)
         {
-            weaponLocalOffset += (Vector3)weaponObject.weaponData.gripOffset;
+            Destroy(currentWeaponInstance);
         }
+
+        currentWeaponInstance = null;
+        weaponObject = null;
+        weaponLocalOffset = Vector3.zero;
+
+        Debug.Log("å·²å¸ä¸‹æ­¦å™¨");
     }
-
-    void UpdateWeaponAim()
-    {
-        if (weaponHand == null) return;
-
-        Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
-        mousePos.z = 0; // È·±£ZÖáÒ»ÖÂ
-
-        Vector2 direction = (mousePos - transform.position).normalized;
-        float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-
-        weaponHand.rotation = Quaternion.Euler(0, 0, angle);
-    }
-
-    void HandleInput()
-    {
-        if (Input.GetKeyDown(KeyCode.Space) || Input.GetMouseButtonDown(0))
-        {
-            TryAttack();
-        }
-    }
-
-    void TryAttack()
-    {
-        if (weaponObject == null) return;
-
-        if (weaponObject.CanAttack())
-        {
-            weaponObject.StartAttack();
-        }
-    }
+    #endregion
 }
