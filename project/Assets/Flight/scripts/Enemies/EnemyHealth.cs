@@ -1,180 +1,150 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections;
 
 public class EnemyHealth : MonoBehaviour
 {
-    [Header("ÉúÃüÖµÉèÖÃ")]
-    public float maxHealth = 30f;          // ×î´óÉúÃüÖµ
-    [SerializeField] private float currentHealth;  // µ±Ç°ÉúÃüÖµ
+    [Header("ç”Ÿå‘½å€¼è®¾ç½®")]
+    public float maxHealth = 30f;                 // æœ€å¤§ç”Ÿå‘½å€¼
+    private float currentHealth;                  // âœ… ä¸åºåˆ—åŒ–ï¼Œé¿å…Inspectoræ±¡æŸ“
 
-    [Header("ÊÜÉËĞ§¹û")]
-    public Color hurtColor = Color.red;    // ÊÜÉËÑÕÉ«
-    public float hurtFlashDuration = 0.1f; // ÉÁË¸Ê±¼ä
-    public GameObject bloodEffect;         // ÑªÒºÌØĞ§£¨¿ÉÑ¡£©
+    [Header("å—ä¼¤æ•ˆæœ")]
+    public Color hurtColor = Color.red;
+    public float hurtFlashDuration = 0.1f;
+    public GameObject bloodEffect;
 
-    [Header("ÒôĞ§")]
-    public AudioClip hurtSound;            // ÊÜÉËÒôĞ§
-    public AudioClip deathSound;           // ËÀÍöÒôĞ§
+    [Header("éŸ³æ•ˆ")]
+    public AudioClip hurtSound;
+    public AudioClip deathSound;
 
-    // ×é¼şÒıÓÃ
+    // ç»„ä»¶å¼•ç”¨
     private SpriteRenderer spriteRenderer;
     private Color originalColor;
     private Collider2D enemyCollider;
 
-    // ÊÂ¼ş£¨¿ÉÑ¡£©
-    public System.Action<float> OnHealthChanged;   // ÉúÃüÖµ±ä»¯ÊÂ¼ş
-    public System.Action OnDeath;                  // ËÀÍöÊÂ¼ş
+    // âœ… æ–°å¢ï¼šç¼“å­˜ EnemyAIï¼ˆç”¨äºç›¾ç‰Œå€ç‡/æ‰ç›¾ï¼‰
+    private EnemyAI enemyAI;
+
+    // äº‹ä»¶ï¼ˆå¯é€‰ï¼‰
+    public System.Action<float> OnHealthChanged;
+    public System.Action OnDeath;
+
+    void Awake()
+    {
+        // âœ… Awake å°±ç¼“å­˜ï¼Œé¿å… Start é¡ºåºé—®é¢˜
+        spriteRenderer = GetComponent<SpriteRenderer>();
+        enemyCollider = GetComponent<Collider2D>();
+        enemyAI = GetComponent<EnemyAI>();
+
+        if (spriteRenderer != null)
+            originalColor = spriteRenderer.color;
+    }
 
     void Start()
     {
-        // ³õÊ¼»¯ÉúÃüÖµ
+        // âœ… æ¯æ¬¡ç”Ÿæˆéƒ½æ»¡è¡€
         currentHealth = maxHealth;
-
-        // »ñÈ¡×é¼ş
-        spriteRenderer = GetComponent<SpriteRenderer>();
-        enemyCollider = GetComponent<Collider2D>();
-
-        if (spriteRenderer != null)
-        {
-            originalColor = spriteRenderer.color;
-        }
-
-        Debug.Log($"{gameObject.name} ÒÑ³õÊ¼»¯£¬ÉúÃüÖµ: {currentHealth}/{maxHealth}");
+        Debug.Log($"{gameObject.name} å·²åˆå§‹åŒ–ï¼Œç”Ÿå‘½å€¼: {currentHealth}/{maxHealth}");
     }
 
-    // ÊÜµ½ÉËº¦µÄÖ÷·½·¨£¨¹«¿ª½Ó¿Ú£©
+    // å—åˆ°ä¼¤å®³çš„ä¸»æ–¹æ³•ï¼ˆå…¬å¼€æ¥å£ï¼‰
     public void TakeDamage(float damageAmount, Vector3 hitPosition)
     {
-        if (currentHealth <= 0) return; // ÒÑ¾­ËÀÍö
+        if (currentHealth <= 0f) return;
+        if (damageAmount <= 0f) return;
 
-        // 1. ¼õÉÙÉúÃüÖµ
+        // ==============================
+        // âœ… ç›¾ç‰Œ/è„†å¼±çª—å£ï¼šå€ç‡ + æ‰ç›¾
+        // ==============================
+        if (enemyAI != null)
+        {
+            // 1) å…ˆé€šçŸ¥è¢«ç©å®¶å‘½ä¸­ï¼ˆæ”¾ç›¾çª—å£å‘½ä¸­ -> æ‰ç›¾ï¼‰
+            enemyAI.NotifyDamagedByPlayer();
+
+            // 2) å†åº”ç”¨æ˜“ä¼¤å€ç‡
+            float mul = enemyAI.GetIncomingDamageMultiplier();
+            if (mul < 1f) mul = 1f;
+            damageAmount *= mul;
+
+            // è°ƒè¯•ï¼šæƒ³çœ‹å€ç‡æ˜¯å¦ç”Ÿæ•ˆå°±æ‰“å¼€è¿™å¥
+            // Debug.Log($"[DMG] base*mul => mul={mul}, final={damageAmount}");
+        }
+
+        // 1. å‡å°‘ç”Ÿå‘½å€¼
         currentHealth -= damageAmount;
 
-        // 2. ´¥·¢ÉúÃüÖµ±ä»¯ÊÂ¼ş
+        // 2. è§¦å‘ç”Ÿå‘½å€¼å˜åŒ–äº‹ä»¶
         OnHealthChanged?.Invoke(currentHealth / maxHealth);
 
-        // 3. ÏÔÊ¾ÉËº¦Êı×Ö£¨¿ÉÑ¡£©
+        // 3. æ˜¾ç¤ºä¼¤å®³æ•°å­—ï¼ˆå¯é€‰ï¼‰
         ShowDamageNumber(damageAmount, hitPosition);
 
-        // 4. ÊÜÉËĞ§¹û
+        // 4. å—ä¼¤æ•ˆæœ
         StartCoroutine(HurtEffect());
 
-        // 5. ²¥·ÅÊÜÉËÒôĞ§
+        // 5. æ’­æ”¾å—ä¼¤éŸ³æ•ˆ
         if (hurtSound != null)
-        {
             AudioSource.PlayClipAtPoint(hurtSound, transform.position, 0.5f);
-        }
 
-        // 6. Éú³ÉÑªÒºÌØĞ§
+        // 6. ç”Ÿæˆè¡€æ¶²ç‰¹æ•ˆ
         if (bloodEffect != null)
-        {
             Instantiate(bloodEffect, hitPosition, Quaternion.identity);
-        }
 
-        // 7. µ÷ÊÔĞÅÏ¢
-        Debug.Log($"{gameObject.name} ÊÜµ½ {damageAmount} µãÉËº¦£¬Ê£ÓàÉúÃü: {currentHealth}");
+        Debug.Log($"{gameObject.name} å—åˆ° {damageAmount} ç‚¹ä¼¤å®³ï¼Œå‰©ä½™ç”Ÿå‘½: {currentHealth}");
 
-        // 8. ¼ì²éËÀÍö
-        if (currentHealth <= 0)
-        {
+        // 7. æ£€æŸ¥æ­»äº¡
+        if (currentHealth <= 0f)
             Die();
-        }
     }
 
-    // ÏÔÊ¾ÉËº¦Êı×Ö£¨¼òµ¥ÊµÏÖ£©
     void ShowDamageNumber(float damage, Vector3 position)
     {
-        // ´´½¨ÎÄ±¾¶ÔÏó£¨ÕâÀïÓÃ¼òµ¥µÄDebug£¬Äã¿ÉÒÔÀ©Õ¹ÎªUI£©
-        Debug.Log($"<color=red>ÉËº¦: {damage}</color>");
-
-        // ¸ß¼¶°æ±¾£º´´½¨3DÎÄ±¾»òUI
-        /*
-        GameObject damageText = new GameObject("DamageText");
-        TextMesh textMesh = damageText.AddComponent<TextMesh>();
-        textMesh.text = damage.ToString();
-        textMesh.color = Color.red;
-        textMesh.fontSize = 20;
-        damageText.transform.position = position + Vector3.up * 0.5f;
-        Destroy(damageText, 1f);
-        */
+        Debug.Log($"<color=red>ä¼¤å®³: {damage}</color>");
     }
 
-    // ÊÜÉËĞ§¹ûĞ­³Ì£¨ÉÁË¸£©
-    private IEnumerator HurtEffect()
+    IEnumerator HurtEffect()
     {
         if (spriteRenderer == null) yield break;
 
-        // ±äºì
         spriteRenderer.color = hurtColor;
-
-        // µÈ´ı
         yield return new WaitForSeconds(hurtFlashDuration);
-
-        // »Ö¸´ÑÕÉ«
         spriteRenderer.color = originalColor;
     }
 
-    // ËÀÍö´¦Àí
     void Die()
     {
-        Debug.Log($"{gameObject.name} ÒÑËÀÍö");
+        Debug.Log($"{gameObject.name} å·²æ­»äº¡");
 
-        // 1. ²¥·ÅËÀÍöÒôĞ§
         if (deathSound != null)
-        {
             AudioSource.PlayClipAtPoint(deathSound, transform.position, 0.7f);
-        }
 
-        // 2. ´¥·¢ËÀÍöÊÂ¼ş
         OnDeath?.Invoke();
 
-        // 3. ½ûÓÃÅö×²Ìå£¨±ÜÃâ¼ÌĞø±»¹¥»÷£©
         if (enemyCollider != null)
-        {
             enemyCollider.enabled = false;
-        }
 
-        // 4. ¿ÉÑ¡£º²¥·ÅËÀÍö¶¯»­
-        // ÕâÀï¼òµ¥ÊµÏÖÎªÏú»Ù¶ÔÏó
-
-        // 5. ÑÓ³ÙÏú»Ù£¨¸øÌØĞ§ºÍÒôĞ§Ê±¼ä£©
         Destroy(gameObject, 0.5f);
     }
 
-    // ÖÎÁÆ£¨¿ÉÑ¡£©
     public void Heal(float healAmount)
     {
         currentHealth = Mathf.Min(currentHealth + healAmount, maxHealth);
         OnHealthChanged?.Invoke(currentHealth / maxHealth);
-        Debug.Log($"{gameObject.name} »Ö¸´ {healAmount} ÉúÃü£¬µ±Ç°: {currentHealth}");
+        Debug.Log($"{gameObject.name} æ¢å¤ {healAmount} ç”Ÿå‘½ï¼Œå½“å‰: {currentHealth}");
     }
 
-    // »ñÈ¡µ±Ç°ÉúÃüÖµ£¨Ö»¶ÁÊôĞÔ£©
-    public float CurrentHealth
-    {
-        get { return currentHealth; }
-    }
+    public float CurrentHealth => currentHealth;
+    public float HealthPercentage => maxHealth <= 0f ? 0f : (currentHealth / maxHealth);
 
-    // »ñÈ¡ÉúÃüÖµ°Ù·Ö±È
-    public float HealthPercentage
-    {
-        get { return currentHealth / maxHealth; }
-    }
-
-    // µ÷ÊÔÓÃ£ºÔÚSceneÊÓÍ¼ÖĞÏÔÊ¾ÉúÃüÖµ
     void OnDrawGizmosSelected()
     {
-        // »æÖÆÉúÃüÖµÌõ
         Vector3 position = transform.position + Vector3.up * 1f;
 
-        // ±³¾°Ìõ£¨ºìÉ«£©
         Gizmos.color = Color.red;
         Gizmos.DrawWireCube(position, new Vector3(1f, 0.1f, 0));
 
-        // ÉúÃüÌõ£¨ÂÌÉ«£©
         Gizmos.color = Color.green;
         float healthPercent = Application.isPlaying ? HealthPercentage : 1f;
         Gizmos.DrawCube(position - new Vector3(0.5f * (1 - healthPercent), 0, 0),
-                       new Vector3(healthPercent, 0.08f, 0));
+                        new Vector3(healthPercent, 0.08f, 0));
     }
 }

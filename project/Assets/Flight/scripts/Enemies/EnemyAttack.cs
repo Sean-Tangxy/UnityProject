@@ -1,33 +1,44 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections;
 
 [RequireComponent(typeof(Collider2D))]
 public class EnemyAttack : MonoBehaviour
 {
-    [Header("¹¥»÷ÉèÖÃ")]
+    [Header("æ”»å‡»è®¾ç½®")]
     public float attackDamage = 10f;
     public float attackKnockback = 5f;
     public Vector2 attackOffset = new Vector2(0.5f, 0);
     public Vector2 attackSize = new Vector2(1f, 0.5f);
 
-    [Header("¹¥»÷Ğ§¹û")]
+    [Header("å‡»é€€æ§åˆ¶ï¼ˆæ–°å¢/ä¿®å¤ï¼‰")]
+    public bool enableKnockback = true;
+    public bool knockbackWhenBlocking = false;
+
+    [Tooltip("æ•Œäººæœ¬ä½“ç‰©ç†å…³é—­ï¼ˆCollider disabled æˆ– Rigidbody2D.simulated=falseï¼‰æ—¶ï¼Œç¦æ­¢å¯¹ç©å®¶æ–½åŠ å‡»é€€")]
+    public bool disableKnockbackWhenEnemyPhysicsOff = true;
+
+    [Header("æ”»å‡»æ•ˆæœ")]
     public LayerMask attackLayers;
     public GameObject attackEffectPrefab;
     public AudioClip attackSound;
     public Color attackFlashColor = Color.white;
     public float attackFlashDuration = 0.1f;
 
-    [Header("¹¥»÷¶¯»­")]
+    [Header("æ”»å‡»åŠ¨ç”»")]
     public float attackDuration = 0.5f;
     public AnimationCurve attackCurve = AnimationCurve.EaseInOut(0, 0, 1, 1);
 
-    [Header("×é¼şÒıÓÃ")]
+    [Header("ç»„ä»¶å¼•ç”¨")]
     private Collider2D attackCollider;
     private SpriteRenderer spriteRenderer;
     private AudioSource audioSource;
-    private EnemyAI enemyAI;
 
-    [Header("×´Ì¬")]
+    // âœ… æ”¹ä¸ºï¼šä»çˆ¶çº§æ‹¿åˆ° EnemyAI/æœ¬ä½“åˆšä½“/æœ¬ä½“ç¢°æ’ä½“
+    private EnemyAI enemyAI;
+    private Rigidbody2D enemyRootRb;
+    private Collider2D enemyRootCol;
+
+    [Header("çŠ¶æ€")]
     private bool isAttacking = false;
     private bool canDamage = false;
     private float originalColliderSize;
@@ -39,14 +50,10 @@ public class EnemyAttack : MonoBehaviour
 
     void InitializeComponents()
     {
-        // »ñÈ¡»ò´´½¨¹¥»÷Åö×²Ìå
         attackCollider = GetComponent<Collider2D>();
         if (attackCollider == null)
-        {
             attackCollider = gameObject.AddComponent<BoxCollider2D>();
-        }
 
-        // ÅäÖÃÅö×²Ìå
         if (attackCollider is BoxCollider2D boxCollider)
         {
             boxCollider.size = attackSize;
@@ -56,11 +63,13 @@ public class EnemyAttack : MonoBehaviour
             originalColliderSize = boxCollider.size.x;
         }
 
-        // »ñÈ¡ÆäËû×é¼ş
         spriteRenderer = GetComponent<SpriteRenderer>();
-        enemyAI = GetComponent<EnemyAI>();
 
-        // ´´½¨ÒôĞ§×é¼ş
+        // âœ… å…³é”®ï¼šæ‹¿çˆ¶çº§ï¼ˆæœ¬ä½“ï¼‰
+        enemyAI = GetComponentInParent<EnemyAI>();
+        enemyRootRb = enemyAI != null ? enemyAI.GetComponent<Rigidbody2D>() : GetComponentInParent<Rigidbody2D>();
+        enemyRootCol = enemyAI != null ? enemyAI.GetComponent<Collider2D>() : GetComponentInParent<Collider2D>();
+
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
         {
@@ -70,7 +79,7 @@ public class EnemyAttack : MonoBehaviour
         }
     }
 
-    #region ¹¥»÷Ö´ĞĞ
+    #region æ”»å‡»æ‰§è¡Œ
     public void ExecuteAttack(Transform target, float damage = 0)
     {
         if (isAttacking) return;
@@ -84,13 +93,11 @@ public class EnemyAttack : MonoBehaviour
         isAttacking = true;
         canDamage = false;
 
-        // 1. ¹¥»÷Ç°Ò¡£¨ÃæÏòÄ¿±ê£©
         if (target != null)
         {
             Vector2 direction = (target.position - transform.position).normalized;
             float targetAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
 
-            // ¿ìËÙ×ªÏòÄ¿±ê
             float rotationTime = 0.1f;
             float elapsed = 0f;
             Quaternion startRotation = transform.rotation;
@@ -104,77 +111,48 @@ public class EnemyAttack : MonoBehaviour
             }
         }
 
-        // 2. ¹¥»÷¶¯»­
         yield return StartCoroutine(AttackAnimation());
 
-        // 3. ¹¥»÷»Ö¸´
         canDamage = false;
-        if (attackCollider != null)
-        {
-            attackCollider.enabled = false;
-        }
+        if (attackCollider != null) attackCollider.enabled = false;
 
-        // 4. Í¨Öª¹¥»÷Íê³É
         isAttacking = false;
     }
 
     IEnumerator AttackAnimation()
     {
-        // ²¥·Å¹¥»÷ÒôĞ§
         if (attackSound != null && audioSource != null)
-        {
             audioSource.PlayOneShot(attackSound);
-        }
 
-        // ¹¥»÷ÉÁ¹âĞ§¹û
         if (spriteRenderer != null)
-        {
             StartCoroutine(FlashSprite(attackFlashColor, attackFlashDuration));
-        }
 
-        // ÆôÓÃÅö×²Ìå£¨ÉËº¦Ö¡£©
         canDamage = true;
-        if (attackCollider != null)
-        {
-            attackCollider.enabled = true;
-        }
+        if (attackCollider != null) attackCollider.enabled = true;
 
-        // ¹¥»÷¶¯»­£¨ÎäÆ÷»Ó¶¯Ğ§¹û£©
         if (spriteRenderer != null)
-        {
             yield return StartCoroutine(SwingAnimation());
-        }
         else
-        {
-            // ¼òµ¥µÄÊ±¼äÑÓ³Ù
             yield return new WaitForSeconds(attackDuration * 0.3f);
-        }
 
-        // ½áÊø¹¥»÷¶¯»­
         canDamage = false;
-        if (attackCollider != null)
-        {
-            attackCollider.enabled = false;
-        }
+        if (attackCollider != null) attackCollider.enabled = false;
     }
 
     IEnumerator SwingAnimation()
     {
         float elapsed = 0f;
         Quaternion startRot = transform.localRotation;
-        Quaternion endRot = startRot * Quaternion.Euler(0, 0, 90f); // »Ó¶¯90¶È
+        Quaternion endRot = startRot * Quaternion.Euler(0, 0, 90f);
 
         while (elapsed < attackDuration)
         {
             elapsed += Time.deltaTime;
-            float t = elapsed / attackDuration;
-            t = attackCurve.Evaluate(t);
-
+            float t = attackCurve.Evaluate(elapsed / attackDuration);
             transform.localRotation = Quaternion.Slerp(startRot, endRot, t);
             yield return null;
         }
 
-        // ¿ìËÙÊÕ»Ø
         elapsed = 0f;
         float returnDuration = attackDuration * 0.2f;
         while (elapsed < returnDuration)
@@ -190,156 +168,127 @@ public class EnemyAttack : MonoBehaviour
     IEnumerator FlashSprite(Color flashColor, float duration)
     {
         if (spriteRenderer == null) yield break;
-
         Color originalColor = spriteRenderer.color;
         spriteRenderer.color = flashColor;
-
         yield return new WaitForSeconds(duration);
-
         spriteRenderer.color = originalColor;
     }
     #endregion
 
-    #region Åö×²¼ì²â
+    #region ç¢°æ’æ£€æµ‹
     void OnTriggerEnter2D(Collider2D other)
     {
         if (!canDamage) return;
-
-        // ¼ì²éÊÇ·ñÊÇ¿É¹¥»÷µÄÄ¿±ê
-        if (IsValidTarget(other))
-        {
-            HandleHit(other);
-        }
+        if (IsValidTarget(other)) HandleHit(other);
     }
 
     bool IsValidTarget(Collider2D target)
     {
-        // ¼ì²éÍ¼²ã
         if (((1 << target.gameObject.layer) & attackLayers.value) == 0)
             return false;
 
-        // ¼ì²é±êÇ©
-        if (target.CompareTag("Player") || target.CompareTag("Ally"))
-            return true;
-
-        return false;
+        return target.CompareTag("Player") || target.CompareTag("Ally");
     }
 
     void HandleHit(Collider2D target)
     {
-        // 1. ¼ÆËã»÷ÍË·½Ïò
         Vector2 hitDirection = (target.transform.position - transform.position).normalized;
 
-        // 2. Ó¦ÓÃÉËº¦
         PlayerHealth playerHealth = target.GetComponent<PlayerHealth>();
+        bool isBlocking = false;
+
         if (playerHealth != null)
         {
-            // ¼ì²éÍæ¼ÒÊÇ·ñÕıÔÚ¸ñµ²
             ShieldController shieldController = target.GetComponentInChildren<ShieldController>();
-            bool isBlocking = shieldController != null && shieldController.IsBlocking();
+            isBlocking = shieldController != null && shieldController.IsBlocking();
 
             if (isBlocking)
             {
-                // ¹¥»÷±»¸ñµ²
                 OnAttackBlocked();
-
-                // ÈÔÈ»¿ÉÄÜÔì³ÉÉÙÁ¿ÉËº¦
-                float blockedDamage = attackDamage * 0.3f; // 30%µÄÉËº¦
-                playerHealth.TakeDamage(blockedDamage, transform.position);
+                playerHealth.TakeDamage(attackDamage * 0.3f, transform.position);
             }
             else
             {
-                // Õı³£ÉËº¦
                 playerHealth.TakeDamage(attackDamage, transform.position);
             }
         }
         else
         {
-            // ÆäËûÀàĞÍµÄÉúÃü×é¼ş
             EnemyHealth enemyHealth = target.GetComponent<EnemyHealth>();
             if (enemyHealth != null)
-            {
                 enemyHealth.TakeDamage(attackDamage, target.ClosestPoint(transform.position));
-            }
         }
 
-        // 3. Ó¦ÓÃ»÷ÍË
+        // âœ… åªåœ¨å…è®¸æ—¶å‡»é€€
+        ApplyKnockbackIfAllowed(target, hitDirection, isBlocking);
+
+        SpawnAttackEffect(target.ClosestPoint(transform.position));
+    }
+
+    void ApplyKnockbackIfAllowed(Collider2D target, Vector2 hitDirection, bool isBlocking)
+    {
+        if (!enableKnockback) return;
+
+        if (isBlocking && !knockbackWhenBlocking) return;
+
+        // âœ… æ ¸å¿ƒï¼šç”¨ EnemyAI/æœ¬ä½“ç‰©ç†çŠ¶æ€åˆ¤æ–­
+        if (disableKnockbackWhenEnemyPhysicsOff)
+        {
+            if (enemyAI != null && !enemyAI.enabled) return;
+            if (enemyAI != null && enemyAI.GetCurrentState() == EnemyState.Dead) return;
+
+            if (enemyRootCol != null && !enemyRootCol.enabled) return;
+            if (enemyRootRb != null && !enemyRootRb.simulated) return;
+        }
+
         Rigidbody2D targetRb = target.GetComponent<Rigidbody2D>();
         if (targetRb != null)
         {
             targetRb.AddForce(hitDirection * attackKnockback, ForceMode2D.Impulse);
         }
-
-        // 4. Éú³É¹¥»÷ÌØĞ§
-        SpawnAttackEffect(target.ClosestPoint(transform.position));
-
-        // 5. Ò»´Î¹¥»÷Ö»ÉËº¦Ò»¸öÄ¿±ê£¨¿ÉÑ¡£©
-        // canDamage = false;
-        // if (attackCollider != null) attackCollider.enabled = false;
-
-        Debug.Log($"{gameObject.name} ¶Ô {target.name} Ôì³É {attackDamage} µãÉËº¦");
     }
 
     public void OnAttackBlocked()
     {
-        Debug.Log($"{gameObject.name} µÄ¹¥»÷±»¸ñµ²£¡");
-
-        // ²¥·Å±»¸ñµ²ÒôĞ§
-        if (attackSound != null)
-        {
-            AudioSource.PlayClipAtPoint(attackSound, transform.position, 0.5f);
-        }
-
-        // ´¥·¢ÊÓ¾õĞ§¹û
         if (spriteRenderer != null)
-        {
             StartCoroutine(FlashSprite(Color.blue, 0.2f));
-        }
 
-        // Í¨ÖªAI¹¥»÷±»¸ñµ²
         if (enemyAI != null)
-        {
             enemyAI.OnAttackBlocked();
-        }
 
-        // ÇáÎ¢»÷ÍË×Ô¼º
-        Rigidbody2D rb = GetComponent<Rigidbody2D>();
-        if (rb != null)
+        // ï¼ˆå¯é€‰ï¼‰æ•Œäººè‡ªå·±åé€€ï¼šåŒæ ·å°Šé‡æœ¬ä½“ç‰©ç†
+        if (enemyRootRb != null && enemyRootRb.simulated)
         {
-            Vector2 knockbackDirection = (transform.position - GameObject.FindGameObjectWithTag("Player").transform.position).normalized;
-            rb.AddForce(knockbackDirection * 3f, ForceMode2D.Impulse);
+            var player = GameObject.FindGameObjectWithTag("Player");
+            if (player != null)
+            {
+                Vector2 knockbackDirection = (transform.position - player.transform.position).normalized;
+                enemyRootRb.AddForce(knockbackDirection * 3f, ForceMode2D.Impulse);
+            }
         }
     }
 
     void SpawnAttackEffect(Vector2 position)
     {
-        if (attackEffectPrefab != null)
+        if (attackEffectPrefab == null) return;
+
+        GameObject effect = Instantiate(attackEffectPrefab, position, Quaternion.identity);
+
+        Vector3 direction = (Vector3)position - transform.position;
+        if (direction.magnitude > 0.1f)
         {
-            GameObject effect = Instantiate(attackEffectPrefab, position, Quaternion.identity);
-
-            // ¸ù¾İ¹¥»÷·½ÏòĞı×ªÌØĞ§
-            Vector3 direction = (Vector3)position - transform.position;
-            if (direction.magnitude > 0.1f)
-            {
-                float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
-                effect.transform.rotation = Quaternion.Euler(0, 0, angle);
-            }
-
-            Destroy(effect, 1f);
+            float angle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            effect.transform.rotation = Quaternion.Euler(0, 0, angle);
         }
+
+        Destroy(effect, 1f);
     }
     #endregion
 
-    #region ¹«¹²·½·¨
-    public bool IsAttacking()
-    {
-        return isAttacking;
-    }
+    #region å…¬å…±æ–¹æ³•
+    public bool IsAttacking() => isAttacking;
 
-    public void SetAttackDamage(float damage)
-    {
-        attackDamage = damage;
-    }
+    public void SetAttackDamage(float damage) => attackDamage = damage;
 
     public void IncreaseAttackRange(float multiplier)
     {
@@ -355,45 +304,6 @@ public class EnemyAttack : MonoBehaviour
         }
     }
 
-    public void SetAttackLayers(LayerMask layers)
-    {
-        attackLayers = layers;
-    }
-    #endregion
-
-    #region ±à¼­Æ÷¹¤¾ß
-    void OnDrawGizmosSelected()
-    {
-        if (attackCollider == null) return;
-
-        Gizmos.color = new Color(1, 0, 0, 0.3f);
-
-        if (attackCollider is BoxCollider2D boxCollider)
-        {
-            Vector2 size = boxCollider.size;
-            Vector2 offset = boxCollider.offset;
-
-            Vector3 worldCenter = transform.position + (Vector3)offset;
-            Vector3 worldSize = new Vector3(size.x * transform.lossyScale.x,
-                                           size.y * transform.lossyScale.y,
-                                           1);
-
-            Gizmos.DrawWireCube(worldCenter, worldSize);
-        }
-    }
-
-    void OnValidate()
-    {
-        // ÔÚ±à¼­Æ÷ÖĞ¸üĞÂÅö×²ÌåÉèÖÃ
-        if (Application.isPlaying) return;
-
-        BoxCollider2D boxCollider = GetComponent<BoxCollider2D>();
-        if (boxCollider != null)
-        {
-            boxCollider.size = attackSize;
-            boxCollider.offset = attackOffset;
-            boxCollider.isTrigger = true;
-        }
-    }
+    public void SetAttackLayers(LayerMask layers) => attackLayers = layers;
     #endregion
 }

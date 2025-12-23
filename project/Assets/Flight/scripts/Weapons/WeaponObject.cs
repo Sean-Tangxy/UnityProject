@@ -71,9 +71,6 @@ public class WeaponObject : MonoBehaviour
 
         if (spriteRenderer != null && weaponData.weaponIcon != null)
             spriteRenderer.sprite = weaponData.weaponIcon;
-
-        // 可选：根据 attackRange 自动给一个默认突刺距离倍率
-        // （你也可以手动在 Inspector 调 thrustDistance）
     }
 
     #region Pivot
@@ -162,7 +159,7 @@ public class WeaponObject : MonoBehaviour
         // 当前朝向（挂载点的右方向）
         Vector3 dir = pivot.right.normalized;
 
-        // 用 pivot 的“本地位置”做插值（注意：你的 WeaponHand 在 Player 层级下，本地坐标更稳定）
+        // 用 pivot 的“本地位置”做插值
         Vector3 startPos = pivot.localPosition;
 
         float baseRange = Mathf.Max(0.0001f, weaponData.attackRange);
@@ -185,10 +182,9 @@ public class WeaponObject : MonoBehaviour
             yield return null;
         }
 
-        // 可选：顶点停顿
         yield return new WaitForSeconds(0.03f);
 
-        // 结束伤害帧（也可以让突刺全程都有伤害，这里按“只在前刺阶段有效”）
+        // 结束伤害帧
         canDamage = false;
         if (weaponCollider != null) weaponCollider.enabled = false;
 
@@ -212,16 +208,25 @@ public class WeaponObject : MonoBehaviour
     void OnTriggerEnter2D(Collider2D other)
     {
         if (!canDamage || weaponData == null) return;
+
+        // ✅ 只要碰到敌人的任意子Collider都可以（常见：BodyHitBox在子物体上）
         if (!other.CompareTag("Enemy")) return;
 
-        EnemyHealth hp = other.GetComponent<EnemyHealth>();
+        // ✅ 关键：从父物体找 EnemyHealth（避免打到子Collider拿不到血条/倍率逻辑）
+        EnemyHealth hp = other.GetComponentInParent<EnemyHealth>();
         if (hp != null)
         {
-            // ✅ 最终伤害 = 基础伤害 * 当前攻击倍率（挥砍1 / 突刺thrustDamageMultiplier）
             float dmg = weaponData.damage * currentDamageMultiplier;
             Vector2 hitPoint = other.ClosestPoint(transform.position);
             hp.TakeDamage(dmg, hitPoint);
+
+            // 可选调试：确认确实命中了哪个Collider
+            // Debug.Log($"Weapon hit: {other.name}, root health: {hp.gameObject.name}, dmg={dmg}");
         }
+        // else
+        // {
+        //     Debug.LogWarning($"Hit {other.name} but no EnemyHealth found in parents.");
+        // }
     }
     #endregion
 

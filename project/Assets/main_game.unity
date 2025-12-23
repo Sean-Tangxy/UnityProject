@@ -168,9 +168,9 @@ GameObject:
   - component: {fileID: 108245583}
   - component: {fileID: 108245582}
   - component: {fileID: 108245581}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: player
-  m_TagString: Untagged
+  m_TagString: Player
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
@@ -239,7 +239,7 @@ Transform:
   m_GameObject: {fileID: 108245574}
   serializedVersion: 2
   m_LocalRotation: {x: 0.00060350023, y: -0, z: -0, w: 0.9999998}
-  m_LocalPosition: {x: -3.66, y: 0.71, z: 0}
+  m_LocalPosition: {x: -3.41, y: -3.42, z: 0}
   m_LocalScale: {x: 2, y: 2, z: 2}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -339,7 +339,7 @@ Rigidbody2D:
   m_Simulated: 1
   m_UseFullKinematicContacts: 0
   m_UseAutoMass: 0
-  m_Mass: 0.0001
+  m_Mass: 0.01
   m_LinearDamping: 0
   m_AngularDamping: 1000000
   m_GravityScale: 0
@@ -415,7 +415,7 @@ MonoBehaviour:
   currentWeaponData:
     weaponName: "\u621F\u628A"
     weaponIcon: {fileID: 1886076291938681571, guid: cca1f894ef6bc264f802c55745e001b4, type: 3}
-    damage: 20
+    damage: 2
     attackRange: 3
     attackSpeed: 5
     attackCooldown: 0.2
@@ -505,9 +505,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   enemyPrefab: {fileID: 5500461828044945701, guid: 92fd3a778fb0457499cac9b065e20f40, type: 3}
-  enemiesPerWave: 8
+  enemiesPerWave: 2
   spawnInterval: 3
-  waveInterval: 20
+  waveInterval: 5
   spawnRadius: 3
   minEnemyDistance: 1.5
   spawnBlockLayers:
@@ -700,7 +700,7 @@ GameObject:
   m_Component:
   - component: {fileID: 239159304}
   - component: {fileID: 239159305}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Circle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1107,7 +1107,7 @@ GameObject:
   m_Component:
   - component: {fileID: 427264894}
   - component: {fileID: 427264895}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Circle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1226,7 +1226,7 @@ GameObject:
   m_Component:
   - component: {fileID: 815514550}
   - component: {fileID: 815514551}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Circle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1345,7 +1345,7 @@ GameObject:
   m_Component:
   - component: {fileID: 951064377}
   - component: {fileID: 951064378}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Circle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1935,7 +1935,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1497525993}
   - component: {fileID: 1497525994}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Circle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2022,7 +2022,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1627653594}
   - component: {fileID: 1627653595}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Circle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2109,7 +2109,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1673775246}
   - component: {fileID: 1673775247}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Circle
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -2319,7 +2319,7 @@ Transform:
   m_GameObject: {fileID: 1687197889}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -3.6599996, y: 0.71000004, z: -13.295158}
+  m_LocalPosition: {x: -3.4099996, y: -3.42, z: -13.295158}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -2423,7 +2423,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1887051607}
   - component: {fileID: 1887051608}
-  m_Layer: 0
+  m_Layer: 7
   m_Name: Circle
   m_TagString: Untagged
   m_Icon: {fileID: 0}

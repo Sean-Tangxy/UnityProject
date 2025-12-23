@@ -111,7 +111,7 @@ Rigidbody2D:
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 4294967295
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -132,7 +132,7 @@ BoxCollider2D:
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
-    m_Bits: 0
+    m_Bits: 4294967295
   m_ExcludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -177,8 +177,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f27b4c3a2385a2e4b81850acf47f1975, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  maxHealth: 50
-  currentHealth: 0
+  maxHealth: 500
   hurtColor: {r: 1, g: 0, b: 0, a: 1}
   hurtFlashDuration: 0.1
   bloodEffect: {fileID: 0}
@@ -218,13 +217,9 @@ MonoBehaviour:
   rotationSpeed: 8
   detectionRange: 5
   attackRange: 1.5
-  fieldOfView: 90
   detectionLayers:
     serializedVersion: 2
     m_Bits: 128
-  obstacleLayers:
-    serializedVersion: 2
-    m_Bits: 1
   patrolPoints: []
   waitTimeAtPoint: 2
   patrolPointReachedDistance: 0.2
@@ -235,12 +230,21 @@ MonoBehaviour:
   useWeaponSystem: 1
   weaponData: {fileID: 11400000, guid: 01dd9b8f0fe6ba041ba7f126a42b83fc, type: 2}
   weaponHand: {fileID: 0}
+  hasShield: 1
+  shieldVisual: {fileID: 0}
+  shieldUpDuration: 15
+  shieldDownDuration: 5
+  vulnerableDamageMultiplier: 1000
+  dropShieldOnHitDuringDownWindow: 1
+  extraVulnerableTimeOnDrop: 5
+  shieldBlinkFrequency: 6
+  shieldBlinkMinAlpha: 0.25
   currentState: 0
   currentTarget: {fileID: 0}
+  stateTimer: 0
   chaseColor: {r: 1, g: 0, b: 0, a: 1}
   alertColor: {r: 1, g: 0.92156863, b: 0.015686275, a: 1}
   stunColor: {r: 0, g: 0, b: 1, a: 1}
   detectionSound: {fileID: 0}
   attackSound: {fileID: 0}
   showDebugInfo: 0
-  drawGizmos: 1

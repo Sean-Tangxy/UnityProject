@@ -1,4 +1,4 @@
-using UnityEngine;
+ï»¿using UnityEngine;
 using System.Collections;
 using System.Collections.Generic;
 
@@ -16,82 +16,96 @@ public enum EnemyState
 [RequireComponent(typeof(Rigidbody2D), typeof(Collider2D))]
 public class EnemyAI : MonoBehaviour
 {
-    [Header("»ù±¾ÉèÖÃ")]
-    public string enemyName = "µĞÈË";
+    [Header("åŸºæœ¬è®¾ç½®")]
+    public string enemyName = "æ•Œäºº";
     public float moveSpeed = 3f;
     public float chaseSpeed = 4f;
     public float rotationSpeed = 5f;
 
-    [Header("ÊÓ¾õÉèÖÃ")]
+    [Header("æ£€æµ‹è®¾ç½®ï¼ˆæ”¹æˆï¼šåªè¦åœ¨èŒƒå›´å†…å°±è¿½ï¼‰")]
     public float detectionRange = 5f;
     public float attackRange = 1.5f;
-    public float fieldOfView = 90f;
-    public LayerMask detectionLayers;
-    public LayerMask obstacleLayers;
+    public LayerMask detectionLayers;   // âœ… å¿…é¡»åŒ…å«ç©å®¶æ‰€åœ¨ Layer
 
-    [Header("Ñ²ÂßÉèÖÃ")]
+    [Header("ï¼ˆå¯ç•™ç©ºï¼‰å·¡é€»è®¾ç½®ï¼šç°åœ¨ä¸ç”¨ä¹Ÿèƒ½è¿½")]
     public List<Transform> patrolPoints = new List<Transform>();
     public float waitTimeAtPoint = 2f;
     public float patrolPointReachedDistance = 0.2f;
 
-    [Header("¹¥»÷ÉèÖÃ")]
+    [Header("æ”»å‡»è®¾ç½®")]
     public float attackCooldown = 1f;
     public int attackDamage = 10;
-    public float attackWindupTime = 0.3f; // ¹¥»÷Ç°Ò¡
-    public float attackRecoveryTime = 0.5f; // ¹¥»÷ºóÒ¡
-    public bool useWeaponSystem = true; // ÊÇ·ñÊ¹ÓÃÎäÆ÷ÏµÍ³
+    public float attackWindupTime = 0.3f;
+    public float attackRecoveryTime = 0.5f;
+    public bool useWeaponSystem = true;
 
-    [Header("ÎäÆ÷ÏµÍ³")]
+    [Header("æ­¦å™¨ç³»ç»Ÿ")]
     public EnemyWeaponData weaponData;
     public Transform weaponHand;
     private EnemyWeapon currentWeapon;
 
-    [Header("×´Ì¬")]
+    // ========================= ç›¾ç‰Œ/è„†å¼±çª—å£ï¼ˆå¯é€‰ï¼‰ =========================
+    [Header("ç›¾ç‰Œ/è„†å¼±çª—å£ï¼ˆå¯é€‰ï¼‰")]
+    public bool hasShield = false;
+    public GameObject shieldVisual;
+    public float shieldUpDuration = 4f;
+    public float shieldDownDuration = 1.2f;
+    public float vulnerableDamageMultiplier = 1.5f;
+    public bool dropShieldOnHitDuringDownWindow = true;
+    public float extraVulnerableTimeOnDrop = 0.5f;
+
+    [Header("æ”¾ä¸‹ç›¾æ—¶é—ªçƒ")]
+    public float shieldBlinkFrequency = 6f;
+    [Range(0f, 1f)]
+    public float shieldBlinkMinAlpha = 0.25f;
+
+    private bool shieldUp = true;
+    private bool shieldDropped = false;
+    private float shieldCycleTimer = 0f;
+    private float vulnerableTimer = 0f;
+    private Coroutine shieldBlinkCo;
+
+    // ========================= çŠ¶æ€ =========================
+    [Header("çŠ¶æ€")]
     [SerializeField] private EnemyState currentState = EnemyState.Idle;
     [SerializeField] private Transform currentTarget;
-    private int currentPatrolIndex = 0;
-    private float stateTimer = 0f;
+
+    [SerializeField] private float stateTimer = 0f;
+
     private bool isAttacking = false;
     private bool canAttack = true;
     private float attackCooldownTimer = 0f;
-    private float originalMoveSpeed;
-    private float originalChaseSpeed;
 
-    [Header("×é¼şÒıÓÃ")]
+    [Header("ç»„ä»¶å¼•ç”¨")]
     private Rigidbody2D rb;
     private EnemyHealth enemyHealth;
     private EnemyAttack enemyAttack;
     private Animator animator;
     private SpriteRenderer spriteRenderer;
 
-    [Header("ÊÓ¾õĞ§¹û")]
+    [Header("è§†è§‰æ•ˆæœ")]
     public Color chaseColor = Color.red;
     public Color alertColor = Color.yellow;
     public Color stunColor = Color.blue;
     private Color originalColor;
 
-    [Header("ÒôĞ§")]
+    [Header("éŸ³æ•ˆ")]
     public AudioClip detectionSound;
     public AudioClip attackSound;
     private AudioSource audioSource;
 
-    [Header("µ÷ÊÔ")]
+    [Header("è°ƒè¯•")]
     public bool showDebugInfo = false;
-    public bool drawGizmos = true;
 
-    // Ìí¼Ó³õÊ¼»¯±êÖ¾·ÀÖ¹µİ¹é
     private bool isInitializing = false;
 
     void Awake()
     {
-        // ·ÀÖ¹µİ¹éµ÷ÓÃ
         if (isInitializing) return;
         isInitializing = true;
 
         InitializeComponents();
         InitializeState();
-
-        // ÑÓ³Ù³õÊ¼»¯ÎäÆ÷£¬±ÜÃâµİ¹é
         StartCoroutine(DelayedInitializeWeapon());
 
         isInitializing = false;
@@ -105,7 +119,6 @@ public class EnemyAI : MonoBehaviour
         animator = GetComponent<Animator>();
         spriteRenderer = GetComponent<SpriteRenderer>();
 
-        // »ñÈ¡»òÌí¼ÓÒôĞ§×é¼ş
         audioSource = GetComponent<AudioSource>();
         if (audioSource == null)
         {
@@ -114,69 +127,36 @@ public class EnemyAI : MonoBehaviour
             audioSource.spatialBlend = 0.7f;
         }
 
-        // ÅäÖÃRigidbody
         if (rb != null)
         {
             rb.constraints = RigidbodyConstraints2D.FreezeRotation;
             rb.collisionDetectionMode = CollisionDetectionMode2D.Continuous;
         }
 
-        // ±£´æÔ­Ê¼ÑÕÉ«
         if (spriteRenderer != null)
-        {
             originalColor = spriteRenderer.color;
-        }
 
-        // ±£´æÔ­Ê¼ËÙ¶È
-        originalMoveSpeed = moveSpeed;
-        originalChaseSpeed = chaseSpeed;
-
-        // ÑéÖ¤±ØÒª×é¼ş
-        if (enemyHealth == null)
-        {
-            Debug.LogWarning($"{gameObject.name} È±·¦EnemyHealth×é¼ş");
-        }
-
-        if (enemyAttack == null && !useWeaponSystem)
-        {
-            Debug.LogWarning($"{gameObject.name} È±·¦EnemyAttack×é¼ş£¬ÇÒÎ´ÆôÓÃÎäÆ÷ÏµÍ³");
-        }
+        if (enemyHealth != null)
+            enemyHealth.OnDeath += OnDeath;
     }
 
+    // âœ… æ”¹æˆï¼šåˆå§‹å°± Idleï¼Œç­‰å¾…æ£€æµ‹ç©å®¶
     void InitializeState()
     {
-        if (patrolPoints.Count > 0)
-        {
-            ChangeState(EnemyState.Patrol);
-        }
-        else
-        {
-            ChangeState(EnemyState.Idle);
-        }
-
-        // ¶©ÔÄÉúÃüÖµÊÂ¼ş
-        if (enemyHealth != null)
-        {
-            enemyHealth.OnDeath += OnDeath;
-        }
+        ChangeState(EnemyState.Idle);
     }
 
     IEnumerator DelayedInitializeWeapon()
     {
-        // µÈ´ıÒ»Ö¡£¬È·±£ËùÓĞ×é¼ş¶¼ÒÑ³õÊ¼»¯
         yield return null;
-
         InitializeWeapon();
     }
 
     void InitializeWeapon()
     {
         if (!useWeaponSystem || weaponData == null || weaponData.weaponPrefab == null)
-        {
             return;
-        }
 
-        // ´´½¨ÎäÆ÷ÊÖ£¨Èç¹ûÃ»ÓĞ£©
         if (weaponHand == null)
         {
             GameObject handObj = new GameObject("WeaponHand");
@@ -185,35 +165,22 @@ public class EnemyAI : MonoBehaviour
             weaponHand = handObj.transform;
         }
 
-        // ÊµÀı»¯ÎäÆ÷
-        GameObject weaponObj = Instantiate(weaponData.weaponPrefab,
-            weaponHand.position, weaponHand.rotation, weaponHand);
-
-        // Á¢¼´ÉèÖÃ¸¸¶ÔÏó£¬±ÜÃâÎäÆ÷×é¼şµÄAwakeÖĞ¿ÉÄÜ´æÔÚµÄÎÊÌâ
+        GameObject weaponObj = Instantiate(weaponData.weaponPrefab, weaponHand.position, weaponHand.rotation, weaponHand);
         weaponObj.transform.SetParent(weaponHand, true);
 
         currentWeapon = weaponObj.GetComponent<EnemyWeapon>();
-
         if (currentWeapon != null)
         {
             currentWeapon.SetOwner(this);
-
-            // Ó¦ÓÃÎäÆ÷Êı¾İ
             currentWeapon.SetDamage(weaponData.baseDamage);
             currentWeapon.SetAttackRange(weaponData.attackRange);
 
-            // µ÷ÕûÎ»ÖÃºÍĞı×ª
             weaponObj.transform.localPosition = weaponData.gripOffset;
             weaponObj.transform.localRotation = Quaternion.Euler(0, 0, weaponData.gripRotation);
-
-            if (showDebugInfo)
-            {
-                Debug.Log($"{enemyName} ×°±¸ÁË {weaponData.weaponName}");
-            }
         }
         else
         {
-            Debug.LogError($"ÎäÆ÷Ô¤ÖÆÌå {weaponData.weaponPrefab.name} È±ÉÙ EnemyWeapon ×é¼ş");
+            Debug.LogError($"æ­¦å™¨é¢„åˆ¶ä½“ {weaponData.weaponPrefab.name} ç¼ºå°‘ EnemyWeapon ç»„ä»¶");
         }
     }
 
@@ -221,72 +188,248 @@ public class EnemyAI : MonoBehaviour
     {
         if (currentState == EnemyState.Dead) return;
 
-        UpdateStateTimers();
-        CheckForPlayer();
+        UpdateTimers();
+        UpdateShieldBehavior();
+
+        // âœ… æ¯å¸§æ£€æµ‹ç©å®¶ï¼šè¿›å…¥èŒƒå›´å°±è¿½
+        CheckForPlayerSimple();
+
         UpdateState();
         UpdateAnimations();
-        UpdateDebugInfo();
     }
 
     void FixedUpdate()
     {
         if (currentState == EnemyState.Dead || currentState == EnemyState.Stunned) return;
-
         HandleMovement();
     }
 
-    #region ×´Ì¬¹ÜÀí
+    // ========================= âœ… æ£€æµ‹ç©å®¶ï¼ˆç®€åŒ–ç‰ˆï¼‰ =========================
+    void CheckForPlayerSimple()
+    {
+        // å¦‚æœå·²æœ‰ç›®æ ‡ï¼Œè¶…å‡ºèŒƒå›´å°±ä¸¢å¤±ç›®æ ‡å› Idle
+        if (currentTarget != null)
+        {
+            float dist = Vector2.Distance(transform.position, currentTarget.position);
+            if (!currentTarget.gameObject.activeInHierarchy || dist > detectionRange * 1.5f)
+            {
+                currentTarget = null;
+                ChangeState(EnemyState.Idle);
+            }
+            return;
+        }
+
+        // åœ¨èŒƒå›´å†…æ‰¾ç©å®¶ï¼ˆLayerMask + Tag åŒä¿é™©ï¼‰
+        Collider2D[] cols = Physics2D.OverlapCircleAll(transform.position, detectionRange, detectionLayers);
+        for (int i = 0; i < cols.Length; i++)
+        {
+            if (!cols[i].CompareTag("Player")) continue;
+
+            currentTarget = cols[i].transform;
+            ChangeState(EnemyState.Chase);
+            UpdateVisualColor(alertColor);
+
+            if (detectionSound != null && audioSource != null)
+                audioSource.PlayOneShot(detectionSound);
+
+            return;
+        }
+    }
+
+    // ========================= å¤–éƒ¨ä¾èµ–æ¥å£ï¼ˆç›¾ç‰Œ/å—ä¼¤ï¼‰ =========================
+    public void OnAttackBlocked()
+    {
+        if (currentState == EnemyState.Dead || currentState == EnemyState.Stunned) return;
+
+        if (rb != null) rb.linearVelocity = Vector2.zero;
+
+        if (currentTarget != null && rb != null)
+        {
+            Vector2 knockDir = (transform.position - currentTarget.position).normalized;
+            rb.AddForce(knockDir * 3f, ForceMode2D.Impulse);
+        }
+
+        ChangeState(EnemyState.Hurt);
+        stateTimer = Mathf.Max(stateTimer, 0.25f);
+    }
+
+    public void Stun(float duration)
+    {
+        if (currentState == EnemyState.Dead) return;
+
+        ChangeState(EnemyState.Stunned);
+        stateTimer = Mathf.Max(duration, 0.01f);
+
+        if (rb != null) rb.linearVelocity = Vector2.zero;
+    }
+
+    public void NotifyDamagedByPlayer()
+    {
+        if (!hasShield || shieldDropped) return;
+
+        bool inDownWindow = (!shieldUp) && (vulnerableTimer > 0f);
+        if (inDownWindow && dropShieldOnHitDuringDownWindow)
+        {
+            DropShield();
+        }
+    }
+
+    public float GetIncomingDamageMultiplier()
+    {
+        if (!hasShield) return 1f;
+        if (shieldDropped) return Mathf.Max(1f, vulnerableDamageMultiplier);
+        if (!shieldUp && vulnerableTimer > 0f) return Mathf.Max(1f, vulnerableDamageMultiplier);
+        return 1f;
+    }
+
+    // ========================= è®¡æ—¶å™¨ =========================
+    void UpdateTimers()
+    {
+        if (stateTimer > 0f) stateTimer -= Time.deltaTime;
+
+        if (attackCooldownTimer > 0f)
+        {
+            attackCooldownTimer -= Time.deltaTime;
+            if (attackCooldownTimer <= 0f) canAttack = true;
+        }
+    }
+
+    // ========================= ç›¾ç‰Œå‘¨æœŸ/é—ªçƒ =========================
+    void UpdateShieldBehavior()
+    {
+        if (!hasShield || shieldDropped) return;
+        if (currentState == EnemyState.Dead) return;
+
+        shieldCycleTimer += Time.deltaTime;
+
+        if (shieldUp)
+        {
+            if (shieldCycleTimer >= Mathf.Max(0.01f, shieldUpDuration))
+                ForceShieldDown(Mathf.Max(0.01f, shieldDownDuration));
+        }
+        else
+        {
+            if (vulnerableTimer > 0f)
+                vulnerableTimer -= Time.deltaTime;
+
+            if (shieldCycleTimer >= Mathf.Max(0.01f, shieldDownDuration))
+                RaiseShield();
+        }
+    }
+
+    void ForceShieldDown(float duration)
+    {
+        shieldUp = false;
+        shieldCycleTimer = 0f;
+        vulnerableTimer = duration;
+        StartShieldBlink();
+    }
+
+    void RaiseShield()
+    {
+        if (shieldDropped) return;
+        shieldUp = true;
+        shieldCycleTimer = 0f;
+        vulnerableTimer = 0f;
+        StopShieldBlink(true);
+    }
+
+    void DropShield()
+    {
+        shieldDropped = true;
+        shieldUp = false;
+
+        if (extraVulnerableTimeOnDrop > 0f)
+            vulnerableTimer = Mathf.Max(vulnerableTimer, extraVulnerableTimeOnDrop);
+
+        StopShieldBlink(true);
+
+        if (shieldVisual != null)
+            shieldVisual.SetActive(false);
+    }
+
+    void StartShieldBlink()
+    {
+        if (shieldVisual == null) return;
+
+        if (shieldBlinkCo != null) StopCoroutine(shieldBlinkCo);
+        shieldBlinkCo = StartCoroutine(ShieldBlinkRoutine());
+    }
+
+    void StopShieldBlink(bool restoreAlpha)
+    {
+        if (shieldBlinkCo != null)
+        {
+            StopCoroutine(shieldBlinkCo);
+            shieldBlinkCo = null;
+        }
+
+        if (restoreAlpha && shieldVisual != null)
+            SetShieldAlpha(1f);
+    }
+
+    IEnumerator ShieldBlinkRoutine()
+    {
+        float freq = Mathf.Max(0.1f, shieldBlinkFrequency);
+        float minA = Mathf.Clamp01(shieldBlinkMinAlpha);
+
+        while (!shieldUp && !shieldDropped && currentState != EnemyState.Dead)
+        {
+            float t = Mathf.PingPong(Time.time * freq, 1f);
+            float a = Mathf.Lerp(minA, 1f, t);
+            SetShieldAlpha(a);
+            yield return null;
+        }
+
+        SetShieldAlpha(1f);
+        shieldBlinkCo = null;
+    }
+
+    void SetShieldAlpha(float a)
+    {
+        if (shieldVisual == null) return;
+        var srs = shieldVisual.GetComponentsInChildren<SpriteRenderer>(true);
+        for (int i = 0; i < srs.Length; i++)
+        {
+            var c = srs[i].color;
+            c.a = a;
+            srs[i].color = c;
+        }
+    }
+
+    // ========================= çŠ¶æ€æœº =========================
     void ChangeState(EnemyState newState)
     {
-        // ÍË³öµ±Ç°×´Ì¬
         ExitState(currentState);
-
-        // ½øÈëĞÂ×´Ì¬
-        EnemyState previousState = currentState;
         currentState = newState;
-        stateTimer = 0f;
 
-        // ×´Ì¬½øÈëÂß¼­
         switch (newState)
         {
             case EnemyState.Idle:
-                rb.linearVelocity = Vector2.zero;
-                if (showDebugInfo) Debug.Log($"{enemyName} ½øÈë¿ÕÏĞ×´Ì¬");
-                break;
-
-            case EnemyState.Patrol:
-                if (patrolPoints.Count > 0)
-                {
-                    currentPatrolIndex = 0;
-                }
-                if (showDebugInfo) Debug.Log($"{enemyName} ½øÈëÑ²Âß×´Ì¬");
+                if (rb != null) rb.linearVelocity = Vector2.zero;
                 break;
 
             case EnemyState.Chase:
                 UpdateVisualColor(chaseColor);
-                if (previousState != EnemyState.Chase && detectionSound != null)
-                {
-                    audioSource.PlayOneShot(detectionSound);
-                }
-                if (showDebugInfo) Debug.Log($"{enemyName} ½øÈë×·Öğ×´Ì¬");
                 break;
 
             case EnemyState.Attack:
-                rb.linearVelocity = Vector2.zero;
-                if (showDebugInfo) Debug.Log($"{enemyName} ½øÈë¹¥»÷×´Ì¬");
+                if (rb != null) rb.linearVelocity = Vector2.zero;
                 break;
 
             case EnemyState.Hurt:
-                rb.linearVelocity = Vector2.zero;
-                stateTimer = 0.5f; // ÊÜÉËÓ²Ö±Ê±¼ä
-                FlashColor(Color.white, 0.1f);
-                if (showDebugInfo) Debug.Log($"{enemyName} ½øÈëÊÜÉË×´Ì¬");
+                if (rb != null) rb.linearVelocity = Vector2.zero;
+                stateTimer = 0.5f;
+                FlashColor(Color.white, 0.08f);
                 break;
 
             case EnemyState.Stunned:
-                rb.linearVelocity = Vector2.zero;
+                if (rb != null) rb.linearVelocity = Vector2.zero;
                 UpdateVisualColor(stunColor);
-                if (showDebugInfo) Debug.Log($"{enemyName} ½øÈëÑ£ÔÎ×´Ì¬");
+                break;
+
+            case EnemyState.Dead:
+                if (rb != null) rb.linearVelocity = Vector2.zero;
                 break;
         }
     }
@@ -306,90 +449,18 @@ public class EnemyAI : MonoBehaviour
     {
         switch (currentState)
         {
-            case EnemyState.Idle:
-                UpdateIdleState();
-                break;
-
-            case EnemyState.Patrol:
-                UpdatePatrolState();
-                break;
-
-            case EnemyState.Chase:
-                UpdateChaseState();
-                break;
-
-            case EnemyState.Attack:
-                UpdateAttackState();
-                break;
-
-            case EnemyState.Hurt:
-                UpdateHurtState();
-                break;
-
-            case EnemyState.Stunned:
-                UpdateStunnedState();
-                break;
+            case EnemyState.Idle: UpdateIdleState(); break;
+            case EnemyState.Chase: UpdateChaseState(); break;
+            case EnemyState.Attack: UpdateAttackState(); break;
+            case EnemyState.Hurt: UpdateHurtState(); break;
+            case EnemyState.Stunned: UpdateStunnedState(); break;
         }
     }
 
     void UpdateIdleState()
     {
-        // ¿ÉÒÔÌí¼ÓËæ»úÒÆ¶¯»òµÈ´ı
-        if (stateTimer > 3f) // ¿ÕÏĞ3ÃëºóÑ²Âß
-        {
-            if (patrolPoints.Count > 0)
-            {
-                ChangeState(EnemyState.Patrol);
-            }
-        }
-
-        // Ëæ»ú¿´Ïò²»Í¬·½Ïò
-        if (Random.value < 0.01f) // 1%¸ÅÂÊ
-        {
-            float randomRotation = Random.Range(-45f, 45f);
-            transform.rotation = Quaternion.Euler(0, 0, transform.rotation.eulerAngles.z + randomRotation);
-        }
-    }
-
-    void UpdatePatrolState()
-    {
-        if (patrolPoints.Count == 0)
-        {
-            ChangeState(EnemyState.Idle);
-            return;
-        }
-
-        Transform targetPoint = patrolPoints[currentPatrolIndex];
-        if (targetPoint == null)
-        {
-            // Ñ²Âßµã±»Ïú»Ù£¬ÒÆ³ıËü
-            patrolPoints.RemoveAt(currentPatrolIndex);
-            if (patrolPoints.Count == 0)
-            {
-                ChangeState(EnemyState.Idle);
-            }
-            return;
-        }
-
-        float distanceToPoint = Vector2.Distance(transform.position, targetPoint.position);
-
-        if (distanceToPoint <= patrolPointReachedDistance)
-        {
-            // µ½´ïÑ²Âßµã£¬µÈ´ı
-            rb.linearVelocity = Vector2.zero;
-
-            if (stateTimer >= waitTimeAtPoint)
-            {
-                // Ç°ÍùÏÂÒ»¸öÑ²Âßµã
-                currentPatrolIndex = (currentPatrolIndex + 1) % patrolPoints.Count;
-                stateTimer = 0f;
-
-                if (showDebugInfo)
-                {
-                    Debug.Log($"{enemyName} Ç°ÍùÏÂÒ»¸öÑ²Âßµã: {currentPatrolIndex}");
-                }
-            }
-        }
+        // âœ… Idle ä¸å†åˆ‡ Patrolï¼Œåªç­‰å¾…æ£€æµ‹ç©å®¶
+        if (rb != null) rb.linearVelocity = Vector2.zero;
     }
 
     void UpdateChaseState()
@@ -400,52 +471,30 @@ public class EnemyAI : MonoBehaviour
             return;
         }
 
-        float distanceToTarget = Vector2.Distance(transform.position, currentTarget.position);
+        float dist = Vector2.Distance(transform.position, currentTarget.position);
 
-        if (distanceToTarget <= attackRange)
+        if (dist <= attackRange)
         {
-            if (canAttack)
-            {
+            if (canAttack && !isAttacking)
                 ChangeState(EnemyState.Attack);
-            }
-            else
-            {
-                // ÔÚ¹¥»÷·¶Î§ÄÚµ«»¹ÔÚÀäÈ´£¬±£³Ö¾àÀë
-                Vector2 directionAway = (transform.position - currentTarget.position).normalized;
-                rb.linearVelocity = directionAway * moveSpeed * 0.5f;
-            }
         }
-        else if (distanceToTarget > detectionRange * 1.5f)
+        else if (dist > detectionRange * 1.5f)
         {
-            // Ä¿±ê³¬³ö×·Öğ·¶Î§
             currentTarget = null;
-            if (patrolPoints.Count > 0)
-            {
-                ChangeState(EnemyState.Patrol);
-            }
-            else
-            {
-                ChangeState(EnemyState.Idle);
-            }
+            ChangeState(EnemyState.Idle);
         }
     }
 
     void UpdateAttackState()
     {
         if (!isAttacking)
-        {
-            // ¿ªÊ¼¹¥»÷
             StartCoroutine(AttackRoutine());
-        }
 
-        // ¼ì²éÄ¿±êÊÇ·ñÈÔÔÚ¹¥»÷·¶Î§ÄÚ
         if (currentTarget != null)
         {
-            float distanceToTarget = Vector2.Distance(transform.position, currentTarget.position);
-            if (distanceToTarget > attackRange * 1.2f)
-            {
+            float dist = Vector2.Distance(transform.position, currentTarget.position);
+            if (dist > attackRange * 1.2f)
                 ChangeState(EnemyState.Chase);
-            }
         }
         else
         {
@@ -455,565 +504,110 @@ public class EnemyAI : MonoBehaviour
 
     void UpdateHurtState()
     {
-        if (stateTimer <= 0)
-        {
-            if (currentTarget != null)
-            {
-                ChangeState(EnemyState.Chase);
-            }
-            else if (patrolPoints.Count > 0)
-            {
-                ChangeState(EnemyState.Patrol);
-            }
-            else
-            {
-                ChangeState(EnemyState.Idle);
-            }
-        }
+        if (stateTimer <= 0f)
+            ChangeState(currentTarget != null ? EnemyState.Chase : EnemyState.Idle);
     }
 
     void UpdateStunnedState()
     {
-        if (stateTimer <= 0)
+        if (stateTimer <= 0f)
         {
-            if (currentTarget != null)
-            {
-                ChangeState(EnemyState.Chase);
-            }
-            else
-            {
-                ChangeState(EnemyState.Idle);
-            }
+            UpdateVisualColor(originalColor);
+            ChangeState(currentTarget != null ? EnemyState.Chase : EnemyState.Idle);
         }
     }
 
-    void UpdateStateTimers()
-    {
-        if (stateTimer > 0)
-        {
-            stateTimer -= Time.deltaTime;
-        }
-
-        if (attackCooldownTimer > 0)
-        {
-            attackCooldownTimer -= Time.deltaTime;
-            if (attackCooldownTimer <= 0)
-            {
-                canAttack = true;
-            }
-        }
-    }
-    #endregion
-
-    #region Íæ¼Ò¼ì²â
-    void CheckForPlayer()
-    {
-        if (currentTarget != null)
-        {
-            // ¼ì²éµ±Ç°Ä¿±êÊÇ·ñÈÔÈ»ÓĞĞ§
-            if (!currentTarget.gameObject.activeInHierarchy ||
-                Vector2.Distance(transform.position, currentTarget.position) > detectionRange * 2f)
-            {
-                currentTarget = null;
-                if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
-                {
-                    ChangeState(patrolPoints.Count > 0 ? EnemyState.Patrol : EnemyState.Idle);
-                }
-            }
-            return;
-        }
-
-        Collider2D[] colliders = Physics2D.OverlapCircleAll(transform.position, detectionRange, detectionLayers);
-
-        foreach (Collider2D collider in colliders)
-        {
-            if (collider.CompareTag("Player"))
-            {
-                if (IsTargetInSight(collider.transform))
-                {
-                    currentTarget = collider.transform;
-                    ChangeState(EnemyState.Chase);
-                    UpdateVisualColor(alertColor);
-                    return;
-                }
-            }
-        }
-    }
-
-    bool IsTargetInSight(Transform target)
-    {
-        if (target == null) return false;
-
-        // ¼ì²é¾àÀë
-        float distance = Vector2.Distance(transform.position, target.position);
-        if (distance > detectionRange) return false;
-
-        // ¼ì²éÊÇ·ñÔÚÊÓÒ°½Ç¶ÈÄÚ
-        Vector2 directionToTarget = (target.position - transform.position).normalized;
-        Vector2 forward = transform.right; // ¼ÙÉèµĞÈËÃæ³¯ÓÒ±ß
-
-        float angle = Vector2.Angle(forward, directionToTarget);
-
-        if (angle > fieldOfView * 0.5f)
-        {
-            return false;
-        }
-
-        // ¼ì²éÊÇ·ñÓĞÕÏ°­ÎïÕÚµ²
-        RaycastHit2D hit = Physics2D.Raycast(
-            transform.position,
-            directionToTarget,
-            detectionRange,
-            obstacleLayers
-        );
-
-        if (hit.collider != null && !hit.collider.CompareTag("Player"))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
-    public void SetTarget(Transform target)
-    {
-        if (target == null) return;
-
-        currentTarget = target;
-        if (currentState != EnemyState.Hurt && currentState != EnemyState.Stunned && currentState != EnemyState.Dead)
-        {
-            ChangeState(EnemyState.Chase);
-        }
-    }
-
-    public void ClearTarget()
-    {
-        currentTarget = null;
-        if (currentState == EnemyState.Chase || currentState == EnemyState.Attack)
-        {
-            ChangeState(patrolPoints.Count > 0 ? EnemyState.Patrol : EnemyState.Idle);
-        }
-    }
-    #endregion
-
-    #region ÒÆ¶¯¿ØÖÆ
+    // ========================= ç§»åŠ¨ =========================
     void HandleMovement()
     {
-        if (currentState == EnemyState.Attack ||
-            currentState == EnemyState.Hurt ||
-            currentState == EnemyState.Stunned)
-        {
+        if (currentState == EnemyState.Attack || currentState == EnemyState.Hurt || currentState == EnemyState.Stunned)
             return;
+
+        Vector2 v = Vector2.zero;
+
+        if (currentState == EnemyState.Chase && currentTarget != null)
+        {
+            v = ((Vector2)(currentTarget.position - transform.position)).normalized * chaseSpeed;
         }
 
-        Vector2 targetVelocity = Vector2.zero;
+        if (rb != null) rb.linearVelocity = v;
 
-        switch (currentState)
+        if (v.sqrMagnitude > 0.01f)
         {
-            case EnemyState.Patrol:
-                if (patrolPoints.Count > 0 && currentPatrolIndex < patrolPoints.Count)
-                {
-                    Transform targetPoint = patrolPoints[currentPatrolIndex];
-                    if (targetPoint != null)
-                    {
-                        targetVelocity = MoveTowards(targetPoint.position, moveSpeed);
-                    }
-                }
-                break;
-
-            case EnemyState.Chase:
-                if (currentTarget != null)
-                {
-                    targetVelocity = MoveTowards(currentTarget.position, chaseSpeed);
-
-                    // ±ÜÃâÓëÄ¿±êÅö×²
-                    float distanceToTarget = Vector2.Distance(transform.position, currentTarget.position);
-                    if (distanceToTarget < attackRange * 0.8f)
-                    {
-                        Vector2 directionAway = (transform.position - currentTarget.position).normalized;
-                        targetVelocity += directionAway * moveSpeed * 0.3f;
-                    }
-                }
-                break;
-        }
-
-        // Ó¦ÓÃËÙ¶ÈÏŞÖÆ
-        if (targetVelocity.magnitude > moveSpeed)
-        {
-            targetVelocity = targetVelocity.normalized * moveSpeed;
-        }
-
-        rb.linearVelocity = targetVelocity;
-
-        // ¸üĞÂÃæÏò·½Ïò
-        if (targetVelocity.magnitude > 0.1f)
-        {
-            UpdateRotation(targetVelocity);
-        }
-        else if (currentTarget != null)
-        {
-            // ¼´Ê¹²»ÒÆ¶¯£¬Ò²ÒªÃæÏòÄ¿±ê
-            Vector2 directionToTarget = (currentTarget.position - transform.position).normalized;
-            UpdateRotation(directionToTarget);
+            float targetAngle = Mathf.Atan2(v.y, v.x) * Mathf.Rad2Deg;
+            Quaternion targetRot = Quaternion.Euler(0, 0, targetAngle);
+            transform.rotation = Quaternion.Slerp(transform.rotation, targetRot, rotationSpeed * Time.fixedDeltaTime);
         }
     }
 
-    Vector2 MoveTowards(Vector3 targetPosition, float speed)
-    {
-        Vector2 direction = (targetPosition - transform.position).normalized;
-        return direction * speed;
-    }
-
-    void UpdateRotation(Vector2 movementDirection)
-    {
-        if (movementDirection.magnitude > 0.1f)
-        {
-            float targetAngle = Mathf.Atan2(movementDirection.y, movementDirection.x) * Mathf.Rad2Deg;
-            Quaternion targetRotation = Quaternion.Euler(0, 0, targetAngle);
-            transform.rotation = Quaternion.Slerp(transform.rotation, targetRotation, rotationSpeed * Time.fixedDeltaTime);
-        }
-    }
-    #endregion
-
-    #region ¹¥»÷ÏµÍ³
+    // ========================= æ”»å‡» =========================
     IEnumerator AttackRoutine()
     {
         isAttacking = true;
         canAttack = false;
 
-        if (showDebugInfo)
-        {
-            Debug.Log($"{enemyName} ¿ªÊ¼¹¥»÷!");
-        }
-
-        // 1. ¹¥»÷Ç°Ò¡£¨ÃæÏòÄ¿±ê£©
+        // å‰æ‘‡ï¼šé¢å‘ç›®æ ‡
         if (currentTarget != null)
         {
-            Vector2 direction = (currentTarget.position - transform.position).normalized;
-            float targetAngle = Mathf.Atan2(direction.y, direction.x) * Mathf.Rad2Deg;
+            Vector2 dir = (currentTarget.position - transform.position).normalized;
+            float targetAngle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+            Quaternion startRot = transform.rotation;
+            Quaternion targetRot = Quaternion.Euler(0, 0, targetAngle);
 
-            // ¿ìËÙ×ªÏòÄ¿±ê
-            float rotationTime = attackWindupTime * 0.5f;
-            float elapsed = 0f;
-            Quaternion startRotation = transform.rotation;
-            Quaternion targetRotation = Quaternion.Euler(0, 0, targetAngle);
-
-            while (elapsed < rotationTime)
+            float rotTime = Mathf.Max(0.01f, attackWindupTime * 0.5f);
+            float t = 0f;
+            while (t < rotTime)
             {
-                elapsed += Time.deltaTime;
-                transform.rotation = Quaternion.Slerp(startRotation, targetRotation, elapsed / rotationTime);
+                t += Time.deltaTime;
+                transform.rotation = Quaternion.Slerp(startRot, targetRot, t / rotTime);
                 yield return null;
             }
         }
 
-        // 2. Ö´ĞĞ¹¥»÷
-        if (useWeaponSystem && currentWeapon != null)
+        // æ‰§è¡Œæ”»å‡»
+        if (useWeaponSystem && currentWeapon != null && weaponData != null)
         {
-            // Ê¹ÓÃÎäÆ÷¹¥»÷
             currentWeapon.StartAttack();
-
-            // µÈ´ıÎäÆ÷¹¥»÷Íê³É
-            yield return new WaitForSeconds(weaponData.attackWindupTime +
-                                          weaponData.attackSwingTime);
+            yield return new WaitForSeconds(weaponData.attackWindupTime + weaponData.attackSwingTime);
         }
         else if (enemyAttack != null)
         {
-            // Ê¹ÓÃ¾ÉµÄ EnemyAttack ÏµÍ³
             enemyAttack.ExecuteAttack(currentTarget, attackDamage);
 
-            // ²¥·Å¹¥»÷ÒôĞ§
             if (attackSound != null && audioSource != null)
-            {
                 audioSource.PlayOneShot(attackSound);
-            }
 
-            // µÈ´ı¹¥»÷¶¯»­
-            yield return new WaitForSeconds(attackWindupTime);
+            yield return new WaitForSeconds(Mathf.Max(0.01f, attackWindupTime));
         }
         else
         {
-            // Ã»ÓĞ¹¥»÷ÏµÍ³£¬Ö±½ÓÔì³ÉÉËº¦
-            if (currentTarget != null)
-            {
-                PlayerHealth playerHealth = currentTarget.GetComponent<PlayerHealth>();
-                if (playerHealth != null)
-                {
-                    playerHealth.TakeDamage(attackDamage, transform.position);
-                }
-            }
-            yield return new WaitForSeconds(attackWindupTime);
+            yield return new WaitForSeconds(Mathf.Max(0.01f, attackWindupTime));
         }
 
-        // 3. ¹¥»÷ºóÒ¡
-        yield return new WaitForSeconds(attackRecoveryTime);
+        yield return new WaitForSeconds(Mathf.Max(0.01f, attackRecoveryTime));
 
-        // 4. ¿ªÊ¼ÀäÈ´
-        attackCooldownTimer = attackCooldown;
-
+        attackCooldownTimer = Mathf.Max(0.01f, attackCooldown);
         isAttacking = false;
 
-        // 5. ·µ»ØÊÊµ±×´Ì¬
-        if (currentTarget != null)
-        {
-            float distanceToTarget = Vector2.Distance(transform.position, currentTarget.position);
-            if (distanceToTarget > attackRange)
-            {
-                ChangeState(EnemyState.Chase);
-            }
-            else if (canAttack)
-            {
-                // Èç¹ûÈÔÔÚ·¶Î§ÄÚ²¢ÇÒ¿ÉÒÔ¹¥»÷£¬¼ÌĞø¹¥»÷
-                ChangeState(EnemyState.Attack);
-            }
-        }
-        else
-        {
-            ChangeState(patrolPoints.Count > 0 ? EnemyState.Patrol : EnemyState.Idle);
-        }
+        ChangeState(currentTarget != null ? EnemyState.Chase : EnemyState.Idle);
     }
 
-    public void OnAttackBlocked()
-    {
-        if (showDebugInfo)
-        {
-            Debug.Log($"{enemyName} µÄ¹¥»÷±»¸ñµ²£¡");
-        }
-
-        // ¹¥»÷±»¸ñµ²Ê±µÄ·´Ó¦
-        if (currentState == EnemyState.Attack)
-        {
-            rb.linearVelocity = Vector2.zero;
-
-            // ÇáÎ¢ºó³·
-            if (currentTarget != null)
-            {
-                Vector2 knockbackDirection = (transform.position - currentTarget.position).normalized;
-                rb.AddForce(knockbackDirection * 3f, ForceMode2D.Impulse);
-            }
-
-            // ¶ÌÔİÓ²Ö±
-            StartCoroutine(BlockStunRoutine());
-        }
-    }
-
-    IEnumerator BlockStunRoutine()
-    {
-        ChangeState(EnemyState.Hurt);
-        yield return new WaitForSeconds(0.3f);
-
-        if (currentTarget != null)
-        {
-            ChangeState(EnemyState.Chase);
-        }
-    }
-    #endregion
-
-    #region ÊÜÉËÓë×´Ì¬Ğ§¹û
-    public void OnHit(Vector2 hitDirection, float knockbackForce = 5f)
-    {
-        // Ó¦ÓÃ»÷ÍË
-        if (rb != null)
-        {
-            rb.AddForce(hitDirection * knockbackForce, ForceMode2D.Impulse);
-        }
-
-        // ½øÈëÊÜÉË×´Ì¬
-        if (currentState != EnemyState.Dead && currentState != EnemyState.Stunned)
-        {
-            ChangeState(EnemyState.Hurt);
-        }
-    }
-
-    public void Stun(float duration)
-    {
-        if (currentState == EnemyState.Dead) return;
-
-        ChangeState(EnemyState.Stunned);
-        stateTimer = duration;
-
-        if (showDebugInfo)
-        {
-            Debug.Log($"{enemyName} ±»Ñ£ÔÎ {duration} Ãë");
-        }
-    }
-
-    public void Slow(float slowPercent, float duration)
-    {
-        if (currentState == EnemyState.Dead) return;
-
-        StartCoroutine(SlowRoutine(slowPercent, duration));
-    }
-
-    IEnumerator SlowRoutine(float slowPercent, float duration)
-    {
-        float originalMove = moveSpeed;
-        float originalChase = chaseSpeed;
-
-        moveSpeed = originalMove * (1f - slowPercent);
-        chaseSpeed = originalChase * (1f - slowPercent);
-
-        if (showDebugInfo)
-        {
-            Debug.Log($"{enemyName} ±»¼õËÙ {slowPercent:P0}£¬³ÖĞø {duration} Ãë");
-        }
-
-        yield return new WaitForSeconds(duration);
-
-        moveSpeed = originalMove;
-        chaseSpeed = originalChase;
-
-        if (showDebugInfo)
-        {
-            Debug.Log($"{enemyName} ¼õËÙĞ§¹û½áÊø");
-        }
-    }
-
-    public void ApplyFear(float duration)
-    {
-        StartCoroutine(FearRoutine(duration));
-    }
-
-    IEnumerator FearRoutine(float duration)
-    {
-        if (currentTarget != null)
-        {
-            Transform fearedTarget = currentTarget;
-            ClearTarget();
-
-            // ÌÓÀëÄ¿±ê
-            float fearTimer = 0f;
-            while (fearTimer < duration && currentState != EnemyState.Dead)
-            {
-                if (fearedTarget != null)
-                {
-                    Vector2 fleeDirection = (transform.position - fearedTarget.position).normalized;
-                    rb.linearVelocity = fleeDirection * chaseSpeed;
-                    UpdateRotation(fleeDirection);
-                }
-
-                fearTimer += Time.deltaTime;
-                yield return null;
-            }
-
-            // »Ö¸´Ñ²Âß
-            if (currentState != EnemyState.Dead)
-            {
-                ChangeState(patrolPoints.Count > 0 ? EnemyState.Patrol : EnemyState.Idle);
-            }
-        }
-    }
-
+    // ========================= æ­»äº¡ =========================
     void OnDeath()
     {
         ChangeState(EnemyState.Dead);
+        StopShieldBlink(true);
 
-        // ½ûÓÃËùÓĞ×é¼ş
         if (rb != null) rb.simulated = false;
-        if (enemyAttack != null) enemyAttack.enabled = false;
 
-        // ½ûÓÃÎäÆ÷
-        if (currentWeapon != null)
-        {
-            currentWeapon.StopAttack();
-            currentWeapon.enabled = false;
-        }
-
-        // ½ûÓÃÅö×²Ìå
-        Collider2D collider = GetComponent<Collider2D>();
-        if (collider != null) collider.enabled = false;
-
-        // Í£Ö¹ËùÓĞĞ­³Ì
         StopAllCoroutines();
-
-        // ½ûÓÃAI
         enabled = false;
-
-        if (showDebugInfo)
-        {
-            Debug.Log($"{enemyName} AIÒÑ½ûÓÃ");
-        }
-    }
-    #endregion
-
-    #region ÎäÆ÷ÏµÍ³
-    public EnemyWeapon GetCurrentWeapon()
-    {
-        return currentWeapon;
     }
 
-    public void EquipWeapon(EnemyWeaponData newWeaponData)
-    {
-        if (newWeaponData == null || newWeaponData.weaponPrefab == null) return;
-
-        // ÒÆ³ı¾ÉÎäÆ÷
-        if (currentWeapon != null)
-        {
-            Destroy(currentWeapon.gameObject);
-            currentWeapon = null;
-        }
-
-        weaponData = newWeaponData;
-
-        // ³õÊ¼»¯ĞÂÎäÆ÷
-        if (weaponHand == null)
-        {
-            GameObject handObj = new GameObject("WeaponHand");
-            handObj.transform.SetParent(transform, false);
-            handObj.transform.localPosition = new Vector3(0.5f, 0.1f, 0);
-            weaponHand = handObj.transform;
-        }
-
-        GameObject weaponObj = Instantiate(weaponData.weaponPrefab,
-            weaponHand.position, weaponHand.rotation, weaponHand);
-        currentWeapon = weaponObj.GetComponent<EnemyWeapon>();
-
-        if (currentWeapon != null)
-        {
-            currentWeapon.SetOwner(this);
-            currentWeapon.SetDamage(weaponData.baseDamage);
-            currentWeapon.SetAttackRange(weaponData.attackRange);
-
-            weaponObj.transform.localPosition = weaponData.gripOffset;
-            weaponObj.transform.localRotation = Quaternion.Euler(0, 0, weaponData.gripRotation);
-
-            if (showDebugInfo)
-            {
-                Debug.Log($"{enemyName} ×°±¸ÁËĞÂÎäÆ÷: {weaponData.weaponName}");
-            }
-        }
-    }
-
-    public void DropWeapon()
-    {
-        if (currentWeapon != null)
-        {
-            // ½â³ı¸¸×Ó¹ØÏµ
-            currentWeapon.transform.parent = null;
-
-            // Ìí¼ÓÎïÀíĞ§¹û
-            Rigidbody2D weaponRb = currentWeapon.gameObject.AddComponent<Rigidbody2D>();
-            weaponRb.gravityScale = 1f;
-
-            // Ëæ»úµ¯Ìø
-            Vector2 randomForce = new Vector2(Random.Range(-2f, 2f), Random.Range(3f, 6f));
-            weaponRb.AddForce(randomForce, ForceMode2D.Impulse);
-
-            // Ğı×ª
-            weaponRb.AddTorque(Random.Range(-50f, 50f));
-
-            // ÉèÖÃ¿ÉÊ°È¡±êÇ©
-            currentWeapon.gameObject.tag = "DroppedWeapon";
-
-            currentWeapon = null;
-            weaponData = null;
-        }
-    }
-    #endregion
-
-    #region ¶¯»­ÓëÊÓ¾õĞ§¹û
+    // ========================= åŠ¨ç”»/é¢œè‰² =========================
     void UpdateAnimations()
     {
-        if (animator == null) return;
+        if (animator == null || rb == null) return;
 
         animator.SetFloat("Speed", rb.linearVelocity.magnitude);
         animator.SetBool("IsAttacking", isAttacking);
@@ -1023,12 +617,10 @@ public class EnemyAI : MonoBehaviour
         animator.SetBool("IsDead", currentState == EnemyState.Dead);
     }
 
-    void UpdateVisualColor(Color color)
+    void UpdateVisualColor(Color c)
     {
         if (spriteRenderer != null)
-        {
-            spriteRenderer.color = color;
-        }
+            spriteRenderer.color = c;
     }
 
     public void FlashColor(Color flashColor, float duration = 0.1f)
@@ -1040,185 +632,36 @@ public class EnemyAI : MonoBehaviour
     {
         if (spriteRenderer == null) yield break;
 
-        Color original = spriteRenderer.color;
+        Color old = spriteRenderer.color;
         spriteRenderer.color = flashColor;
 
         yield return new WaitForSeconds(duration);
 
         if (spriteRenderer != null)
-        {
-            spriteRenderer.color = original;
-        }
-    }
-    #endregion
-
-    #region µ÷ÊÔĞÅÏ¢
-    void UpdateDebugInfo()
-    {
-        if (!showDebugInfo) return;
-
-        if (Time.frameCount % 60 == 0) // Ã¿Ãë¸üĞÂÒ»´Î
-        {
-            Debug.Log($"[{enemyName}] ×´Ì¬: {currentState}, Ä¿±ê: {(currentTarget != null ? currentTarget.name : "ÎŞ")}, ËÙ¶È: {rb.linearVelocity.magnitude:F2}");
-        }
-    }
-    #endregion
-
-    #region ¹«¹²·½·¨
-    public EnemyState GetCurrentState()
-    {
-        return currentState;
-    }
-
-    public Transform GetCurrentTarget()
-    {
-        return currentTarget;
-    }
-
-    public bool IsAlive()
-    {
-        return currentState != EnemyState.Dead;
-    }
-
-    public void AddPatrolPoint(Transform point)
-    {
-        if (!patrolPoints.Contains(point))
-        {
-            patrolPoints.Add(point);
-        }
-    }
-
-    public void RemovePatrolPoint(Transform point)
-    {
-        if (patrolPoints.Contains(point))
-        {
-            patrolPoints.Remove(point);
-        }
-    }
-
-    public void ClearPatrolPoints()
-    {
-        patrolPoints.Clear();
-    }
-
-    public void SetMovementSpeed(float newSpeed, float newChaseSpeed = -1)
-    {
-        moveSpeed = newSpeed;
-        if (newChaseSpeed >= 0)
-        {
-            chaseSpeed = newChaseSpeed;
-        }
-    }
-
-    public void ResetMovementSpeed()
-    {
-        moveSpeed = originalMoveSpeed;
-        chaseSpeed = originalChaseSpeed;
-    }
-    #endregion
-
-    #region ±à¼­Æ÷¹¤¾ß
-    void OnDrawGizmos()
-    {
-        if (!drawGizmos) return;
-
-        // »æÖÆ¼ì²â·¶Î§
-        Gizmos.color = Color.yellow;
-        Gizmos.DrawWireSphere(transform.position, detectionRange);
-
-        // »æÖÆ¹¥»÷·¶Î§
-        Gizmos.color = Color.red;
-        Gizmos.DrawWireSphere(transform.position, attackRange);
-
-        // »æÖÆÊÓÒ°½Ç¶È
-        Gizmos.color = new Color(0, 1, 0, 0.3f);
-        float halfFOV = fieldOfView * 0.5f;
-
-        Quaternion leftRayRotation = Quaternion.AngleAxis(-halfFOV, Vector3.forward);
-        Quaternion rightRayRotation = Quaternion.AngleAxis(halfFOV, Vector3.forward);
-
-        Vector3 leftRayDirection = leftRayRotation * transform.right;
-        Vector3 rightRayDirection = rightRayRotation * transform.right;
-
-        Gizmos.DrawRay(transform.position, leftRayDirection * detectionRange);
-        Gizmos.DrawRay(transform.position, rightRayDirection * detectionRange);
-
-        // »æÖÆÉÈĞÎÇøÓò
-        DrawAngleSector(transform.position, transform.right, fieldOfView, detectionRange);
-
-        // »æÖÆµ±Ç°Ä¿±ê
-        if (currentTarget != null)
-        {
-            Gizmos.color = Color.magenta;
-            Gizmos.DrawLine(transform.position, currentTarget.position);
-        }
-
-        // »æÖÆÑ²ÂßÂ·¾¶
-        Gizmos.color = Color.blue;
-        for (int i = 0; i < patrolPoints.Count; i++)
-        {
-            if (patrolPoints[i] != null)
-            {
-                Gizmos.DrawWireSphere(patrolPoints[i].position, 0.2f);
-                if (i > 0 && patrolPoints[i - 1] != null)
-                {
-                    Gizmos.DrawLine(patrolPoints[i - 1].position, patrolPoints[i].position);
-                }
-            }
-        }
-
-        // Á¬½Ó×îºóÒ»¸öµãºÍµÚÒ»¸öµãĞÎ³É»·Â·
-        if (patrolPoints.Count > 1 && patrolPoints[0] != null && patrolPoints[patrolPoints.Count - 1] != null)
-        {
-            Gizmos.DrawLine(patrolPoints[patrolPoints.Count - 1].position, patrolPoints[0].position);
-        }
-    }
-
-    void DrawAngleSector(Vector3 center, Vector3 direction, float angle, float radius)
-    {
-        int segments = 20;
-        float step = angle / segments;
-        float halfAngle = angle * 0.5f;
-
-        Vector3 prevPoint = center + Quaternion.Euler(0, 0, -halfAngle) * direction * radius;
-
-        for (int i = 0; i <= segments; i++)
-        {
-            float currentAngle = -halfAngle + step * i;
-            Vector3 currentPoint = center + Quaternion.Euler(0, 0, currentAngle) * direction * radius;
-
-            Gizmos.DrawLine(center, currentPoint);
-            Gizmos.DrawLine(prevPoint, currentPoint);
-
-            prevPoint = currentPoint;
-        }
+            spriteRenderer.color = old;
     }
 
     void OnValidate()
     {
-        // È·±£¼ì²â·¶Î§²»Ğ¡ÓÚ¹¥»÷·¶Î§
-        if (detectionRange < attackRange)
-        {
-            detectionRange = attackRange + 1f;
-        }
+        if (detectionRange < attackRange) detectionRange = attackRange + 1f;
+        if (chaseSpeed < moveSpeed) chaseSpeed = moveSpeed * 1.5f;
 
-        // È·±£×·ÖğËÙ¶È²»Ğ¡ÓÚÒÆ¶¯ËÙ¶È
-        if (chaseSpeed < moveSpeed)
-        {
-            chaseSpeed = moveSpeed * 1.5f;
-        }
+        shieldUpDuration = Mathf.Max(0.01f, shieldUpDuration);
+        shieldDownDuration = Mathf.Max(0.01f, shieldDownDuration);
+        vulnerableDamageMultiplier = Mathf.Max(1f, vulnerableDamageMultiplier);
+        shieldBlinkFrequency = Mathf.Max(0.1f, shieldBlinkFrequency);
+        shieldBlinkMinAlpha = Mathf.Clamp01(shieldBlinkMinAlpha);
     }
-    #endregion
 
     void OnDestroy()
     {
-        // ÇåÀíÊÂ¼ş¶©ÔÄ
         if (enemyHealth != null)
-        {
             enemyHealth.OnDeath -= OnDeath;
-        }
 
-        // Í£Ö¹ËùÓĞĞ­³Ì
         StopAllCoroutines();
     }
+
+    public EnemyState GetCurrentState() => currentState;
+    public Transform GetCurrentTarget() => currentTarget;
+    public bool IsAlive() => currentState != EnemyState.Dead;
 }
