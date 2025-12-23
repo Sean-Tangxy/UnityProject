@@ -1,0 +1,32 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 322948045d7c26e46a38bd0a256f8982, type: 3}
+  m_Name: WoodenShieldData
+  m_EditorClassIdentifier: 
+  shieldName: "\u6728\u76FE"
+  shieldSprite: {fileID: -7328936922751058518, guid: e9505f3a6fd7dd744bec6e504ed94fa6, type: 3}
+  shieldColor: {r: 1, g: 1, b: 1, a: 1}
+  damageReduction: 0.6
+  blockAngle: 1
+  blockStaminaCost: 12
+  blockCooldown: 0.4
+  shieldSize: {x: 0.8, y: 1}
+  shieldOffset: {x: 0.4, y: 0}
+  blockSound: {fileID: 0}
+  blockEffectPrefab: {fileID: 0}
+  blockShakeIntensity: 0.15
+  blockShakeDuration: 0.25
+  maxDurability: 80
+  durabilityPerHit: 4
+  canParry: 1
+  parryWindow: 0.25
+  parryStunDuration: 1.2

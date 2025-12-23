@@ -1,0 +1,241 @@
+﻿using UnityEngine;
+
+[RequireComponent(typeof(Rigidbody2D))]
+public class DirectionalMovement : MonoBehaviour
+{
+    [Header("移动设置")]
+    public float walkSpeed = 3f;
+    public float runSpeed = 6f;
+
+    [Header("动画参数名称")]
+    public string moveXParam = "MoveX";
+    public string moveYParam = "MoveY";
+    public string isMovingParam = "IsMoving";
+    public string isRunningParam = "IsRunning";
+
+    [Header("摄像机设置")]
+    public bool followCamera = true;
+    public Vector3 cameraOffset = new Vector3(0, 0, -10);
+
+    [Tooltip("像素风关键：统一PPU=100")]
+    public int pixelsPerUnit = 100;
+
+    [Header("退出设置")]
+    public bool escToQuit = true;
+
+    [Header("碰撞移动设置")]
+    [Tooltip("与墙保持的最小距离（世界单位）。100PPU 时 0.01=1像素，常用 0.001~0.003")]
+    public float skinWidth = 0.002f;
+
+    [Tooltip("哪些层算作障碍物（墙、障碍物所在层）")]
+    public LayerMask obstacleMask;
+
+    [Header("八方向移动设置")]
+    [Tooltip("是否允许斜角移动")]
+    public bool allowDiagonalMovement = true;
+
+    [Tooltip("斜角移动时是否保持对角线速度一致（true=八方向同等速度，false=对角线会稍快）")]
+    public bool normalizeDiagonal = true;
+
+    private Animator animator;
+    private Rigidbody2D rb;
+    private Camera mainCamera;
+
+    // 输入与状态（供移动/动画使用）
+    private float horizontal;
+    private float vertical;
+    private bool isMoving;
+    private bool isRunning;
+
+    // 物理检测缓存
+    private readonly RaycastHit2D[] castResults = new RaycastHit2D[8];
+    private ContactFilter2D contactFilter;
+
+    void Start()
+    {
+        animator = GetComponent<Animator>();
+        rb = GetComponent<Rigidbody2D>();
+        mainCamera = Camera.main;
+
+        // 物理建议（像素2D）
+        rb.gravityScale = 0f;
+        rb.freezeRotation = true;
+        rb.interpolation = RigidbodyInterpolation2D.Interpolate;
+
+        contactFilter = new ContactFilter2D
+        {
+            useLayerMask = true,
+            layerMask = obstacleMask,
+            useTriggers = false
+        };
+
+        if (mainCamera == null)
+            Debug.LogWarning("未找到主摄像机！");
+    }
+
+    void Update()
+    {
+        if (escToQuit && Input.GetKeyDown(KeyCode.Escape))
+        {
+            QuitGame();
+            return;
+        }
+
+        UpdateInputValues();
+        HandleRunInput();
+        UpdateAnimator();
+    }
+
+    void FixedUpdate()
+    {
+        DoMoveWithCollision();
+    }
+
+    void LateUpdate()
+    {
+        UpdateCameraPixelPerfect();
+    }
+
+    // ✅ 八方向输入：允许斜角移动
+    void UpdateInputValues()
+    {
+        // 获取原始输入值
+        float rawHorizontal = 0f;
+        float rawVertical = 0f;
+
+        // 水平输入
+        if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow)) rawHorizontal -= 1f;
+        if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow)) rawHorizontal += 1f;
+
+        // 垂直输入
+        if (Input.GetKey(KeyCode.S) || Input.GetKey(KeyCode.DownArrow)) rawVertical -= 1f;
+        if (Input.GetKey(KeyCode.W) || Input.GetKey(KeyCode.UpArrow)) rawVertical += 1f;
+
+        // 处理输入值
+        if (allowDiagonalMovement)
+        {
+            horizontal = rawHorizontal;
+            vertical = rawVertical;
+
+            // 如果需要标准化对角线速度
+            if (normalizeDiagonal && horizontal != 0f && vertical != 0f)
+            {
+                Vector2 dir = new Vector2(horizontal, vertical).normalized;
+                horizontal = dir.x;
+                vertical = dir.y;
+            }
+        }
+        else
+        {
+            // 不允许斜角移动：优先水平或垂直
+            if (Mathf.Abs(rawHorizontal) > Mathf.Abs(rawVertical))
+            {
+                horizontal = rawHorizontal;
+                vertical = 0f;
+            }
+            else if (Mathf.Abs(rawVertical) > Mathf.Abs(rawHorizontal))
+            {
+                horizontal = 0f;
+                vertical = rawVertical;
+            }
+            else
+            {
+                horizontal = rawHorizontal;
+                vertical = rawVertical;
+            }
+        }
+
+        isMoving = (horizontal != 0f || vertical != 0f);
+    }
+
+    void HandleRunInput()
+    {
+        isRunning = (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift)) && isMoving;
+    }
+
+    // ✅ 碰撞移动：rb.Cast + MovePosition（撞墙不抖）
+    void DoMoveWithCollision()
+    {
+        Vector2 dir = new Vector2(horizontal, vertical);
+        if (dir == Vector2.zero) return;
+
+        // 如果对角线未标准化，需要在这里处理速度
+        if (allowDiagonalMovement && !normalizeDiagonal && horizontal != 0f && vertical != 0f)
+        {
+            dir = dir.normalized;
+        }
+
+        float speed = isRunning ? runSpeed : walkSpeed;
+        float distance = speed * Time.fixedDeltaTime;
+
+        int hitCount = rb.Cast(dir, contactFilter, castResults, distance + skinWidth);
+
+        float allowed = distance;
+        for (int i = 0; i < hitCount; i++)
+        {
+            float d = castResults[i].distance - skinWidth;
+            if (d < allowed) allowed = Mathf.Max(0f, d);
+        }
+
+        rb.MovePosition(rb.position + dir * allowed);
+    }
+
+    void UpdateAnimator()
+    {
+        if (animator == null) return;
+
+        animator.SetBool(isMovingParam, isMoving);
+        animator.SetBool(isRunningParam, isRunning && isMoving);
+
+        // 对于八方向动画，直接使用输入值（包括斜角）
+        animator.SetFloat(moveXParam, horizontal);
+        animator.SetFloat(moveYParam, vertical);
+    }
+
+    // ✅ 像素对齐相机（正交像素风必备）
+    void UpdateCameraPixelPerfect()
+    {
+        if (mainCamera == null || !followCamera) return;
+
+        Vector3 target = new Vector3(rb.position.x, rb.position.y, 0f) + cameraOffset;
+        target = QuantizeToPixelGrid(target, pixelsPerUnit);
+
+        mainCamera.transform.position = target;
+    }
+
+    static Vector3 QuantizeToPixelGrid(Vector3 pos, int ppu)
+    {
+        if (ppu <= 0) return pos;
+        float step = 1f / ppu; // 100PPU -> 0.01
+        pos.x = Mathf.Round(pos.x / step) * step;
+        pos.y = Mathf.Round(pos.y / step) * step;
+        return pos; // z 保持
+    }
+
+    void QuitGame()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+    }
+
+    // 辅助方法：获取当前移动方向（八方向）
+    public Vector2 GetMovementDirection()
+    {
+        return new Vector2(horizontal, vertical).normalized;
+    }
+
+    // 辅助方法：获取当前移动角度（0-360度）
+    public float GetMovementAngle()
+    {
+        if (!isMoving) return 0f;
+
+        Vector2 dir = new Vector2(horizontal, vertical);
+        float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
+
+        if (angle < 0) angle += 360f;
+        return angle;
+    }
+}
