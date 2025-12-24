@@ -20,6 +20,12 @@ EditorBuildSettings:
   - enabled: 0
     path: Assets/game2.unity
     guid: 9f81278063eb94848b97f6c9a5d57daa
+  - enabled: 1
+    path: Assets/Scene/GameOverScene.unity
+    guid: c941ef63e18813242b8e0787226c43f7
+  - enabled: 1
+    path: Assets/Scene/vketor.unity
+    guid: 03a329653c163434da94cf3543ee2a90
   m_configObjects:
     com.unity.input.settings.actions: {fileID: -944628639613478452, guid: 2bcd2660ca9b64942af0de543d8d7100, type: 3}
   m_UseUCBPForAssetBundles: 0
