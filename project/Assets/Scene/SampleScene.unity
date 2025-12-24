@@ -6879,6 +6879,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1289758982}
   - component: {fileID: 1289758981}
+  - component: {fileID: 1289758983}
   m_Layer: 0
   m_Name: GameManager
   m_TagString: Untagged
@@ -6898,9 +6899,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e3027280ea2b61b4ea63b7beb632406b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gameOverSceneIndex: 4
-  restartSceneIndex: 1
-  menuSceneIndex: 0
+  gameOverSceneIndex: 5
+  restartSceneIndex: 0
+  menuSceneIndex: 1
   playerHealth: {fileID: 895876571}
   delayBeforeGameOver: 1
 --- !u!4 &1289758982
@@ -6918,6 +6919,25 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1289758983
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1289758980}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9dc392edd4bc7e140b9e36133bc24f96, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  victorySceneIndex: 5
+  restartSceneIndex: 1
+  menuSceneIndex: 0
+  bossHealth: {fileID: 1898821205}
+  delayBeforeVictory: 2
+  showDebugInfo: 1
+  autoFindBoss: 1
 --- !u!1 &1297204007
 GameObject:
   m_ObjectHideFlags: 0

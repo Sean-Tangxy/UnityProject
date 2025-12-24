@@ -29,7 +29,7 @@ MonoBehaviour:
     text: "\u627E\u51C6\u65F6\u673A\u9664\u6389\u4ED6\u4EEC\n"
     portrait: {fileID: -609283226, guid: b39e1876b2a153c4b96a8a25c365a93b, type: 3}
   - speaker: 123
-    text: "shift\u8DD1  \u5DE6\u952E\u9632\u5FA1"
+    text: "shift\u8DD1  \u5DE6\u952E\u9632\u5FA1 T\u7528\u6765\u524D\u5F80\u4E0B\u4E00\u5C42"
     portrait: {fileID: -609283226, guid: b39e1876b2a153c4b96a8a25c365a93b, type: 3}
   - speaker: 123
     text: "\u53F3\u952E\u7784\u51C6/\u653B\u51FB space\u6233"
