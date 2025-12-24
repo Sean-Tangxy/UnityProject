@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 78723613814873a4f9a85538956b428f, type: 3}
+  m_Name: lines
+  m_EditorClassIdentifier: 
+  lines:
+  - speaker: 123
+    text: "\u5730\u7262\u91CC\u7684\u6B66\u5668\u600E\u4E48\u6210\u7CBE\u4E86\uFF1F\uFF01"
+    portrait: {fileID: -609283226, guid: b39e1876b2a153c4b96a8a25c365a93b, type: 3}
+  - speaker: 123
+    text: "\u6240\u6709\u9A91\u58EB\u4E2D\u53EA\u6709\u4F60\u7684\u6B66\u5668\u6CA1\u6709\u53D8\u5316\n"
+    portrait: {fileID: -609283226, guid: b39e1876b2a153c4b96a8a25c365a93b, type: 3}
+  - speaker: 123
+    text: "\u60F3\u5FC5\u5B83\u4EEC\u4E5F\u8BA8\u538C\u7EC6\u72D7\u5427\n"
+    portrait: {fileID: -609283226, guid: b39e1876b2a153c4b96a8a25c365a93b, type: 3}
+  - speaker: 123
+    text: "\u4F46\u6B63\u597D\u4F60\u7684\u67AA\u80FD\u6233\u8FDB\u62A4\u76FE\u7684\u95F4\u9699\n"
+    portrait: {fileID: -609283226, guid: b39e1876b2a153c4b96a8a25c365a93b, type: 3}
+  - speaker: 123
+    text: "\u627E\u51C6\u65F6\u673A\u9664\u6389\u4ED6\u4EEC\n"
+    portrait: {fileID: -609283226, guid: b39e1876b2a153c4b96a8a25c365a93b, type: 3}
+  - speaker: 123
+    text: "shift\u8DD1  \u5DE6\u952E\u9632\u5FA1"
+    portrait: {fileID: -609283226, guid: b39e1876b2a153c4b96a8a25c365a93b, type: 3}
+  - speaker: 123
+    text: "\u53F3\u952E\u7784\u51C6/\u653B\u51FB space\u6233"
+    portrait: {fileID: -609283226, guid: b39e1876b2a153c4b96a8a25c365a93b, type: 3}
+  - speaker: 
+    text: '
+
+'
+    portrait: {fileID: 0}

@@ -24,34 +24,24 @@ public class DirectionalMovement : MonoBehaviour
     public bool escToQuit = true;
 
     [Header("碰撞移动设置")]
-    [Tooltip("与墙保持的最小距离（世界单位）。100PPU 时 0.01=1像素，常用 0.001~0.003")]
     public float skinWidth = 0.002f;
-
-    [Tooltip("哪些层算作障碍物（墙、障碍物所在层）")]
     public LayerMask obstacleMask;
 
     [Header("八方向移动设置")]
-    [Tooltip("是否允许斜角移动")]
     public bool allowDiagonalMovement = true;
-
-    [Tooltip("斜角移动时是否保持对角线速度一致（true=八方向同等速度，false=对角线会稍快）")]
     public bool normalizeDiagonal = true;
 
     private Animator animator;
     private Rigidbody2D rb;
     private Camera mainCamera;
 
-    // 输入与状态（供移动/动画使用）
     private float horizontal;
     private float vertical;
     private bool isMoving;
     private bool isRunning;
 
-    // ✅ 新增：四向朝向（供武器/挂载点用）
-    // 默认朝下
     public Vector2 LastFacingDir { get; private set; } = Vector2.down;
 
-    // 物理检测缓存
     private readonly RaycastHit2D[] castResults = new RaycastHit2D[8];
     private ContactFilter2D contactFilter;
 
@@ -72,8 +62,11 @@ public class DirectionalMovement : MonoBehaviour
             useTriggers = false
         };
 
-        if (mainCamera == null)
-            Debug.LogWarning("未找到主摄像机！");
+        // ✅ 切场景后新玩家在 Start() 应用落点（关键）
+        if (TeleportData.TryConsume(out var pos))
+        {
+            ForceTeleport(pos);
+        }
     }
 
     void Update()
@@ -99,7 +92,6 @@ public class DirectionalMovement : MonoBehaviour
         UpdateCameraPixelPerfect();
     }
 
-    // ✅ 八方向输入：允许斜角移动
     void UpdateInputValues()
     {
         float rawHorizontal = 0f;
@@ -144,19 +136,16 @@ public class DirectionalMovement : MonoBehaviour
 
         isMoving = (horizontal != 0f || vertical != 0f);
 
-        // ✅ 新增：只要有输入，就更新“朝向(四向)”
         if (isMoving)
         {
             LastFacingDir = To4Dir(new Vector2(horizontal, vertical));
         }
     }
 
-    // ✅ 把任意方向归并为四向（斜向取“更强轴”）
     static Vector2 To4Dir(Vector2 dir)
     {
         if (dir.sqrMagnitude < 0.0001f) return Vector2.down;
 
-        // 注意：你 normalizeDiagonal=true 时斜向是 0.707/0.707，所以用 abs 比较即可
         if (Mathf.Abs(dir.x) > Mathf.Abs(dir.y))
             return dir.x >= 0 ? Vector2.right : Vector2.left;
         else
@@ -199,7 +188,6 @@ public class DirectionalMovement : MonoBehaviour
 
         animator.SetBool(isMovingParam, isMoving);
         animator.SetBool(isRunningParam, isRunning && isMoving);
-
         animator.SetFloat(moveXParam, horizontal);
         animator.SetFloat(moveYParam, vertical);
     }
@@ -210,7 +198,6 @@ public class DirectionalMovement : MonoBehaviour
 
         Vector3 target = new Vector3(rb.position.x, rb.position.y, 0f) + cameraOffset;
         target = QuantizeToPixelGrid(target, pixelsPerUnit);
-
         mainCamera.transform.position = target;
     }
 
@@ -232,26 +219,33 @@ public class DirectionalMovement : MonoBehaviour
 #endif
     }
 
-    // ✅ 给外部用：当前四向朝向
-    public Vector2 GetFacing4Dir()
+    public Vector2 GetFacing4Dir() => LastFacingDir;
+
+    public void ForceTeleport(Vector3 worldPos)
     {
-        return LastFacingDir;
+        rb.position = new Vector2(worldPos.x, worldPos.y);
+        transform.position = worldPos;
+
+        rb.linearVelocity = Vector2.zero;  // ✅ 正确字段
+        ClearInput();
+
+        UpdateAnimator();
+        UpdateCameraPixelPerfect();
     }
 
-    // 你原来的辅助方法保留
-    public Vector2 GetMovementDirection()
+    public void ClearInput()
     {
-        return new Vector2(horizontal, vertical).normalized;
-    }
+        horizontal = 0f;
+        vertical = 0f;
+        isMoving = false;
+        isRunning = false;
 
-    public float GetMovementAngle()
-    {
-        if (!isMoving) return 0f;
-
-        Vector2 dir = new Vector2(horizontal, vertical);
-        float angle = Mathf.Atan2(dir.y, dir.x) * Mathf.Rad2Deg;
-
-        if (angle < 0) angle += 360f;
-        return angle;
+        if (animator != null)
+        {
+            animator.SetBool(isMovingParam, false);
+            animator.SetBool(isRunningParam, false);
+            animator.SetFloat(moveXParam, 0f);
+            animator.SetFloat(moveYParam, 0f);
+        }
     }
 }

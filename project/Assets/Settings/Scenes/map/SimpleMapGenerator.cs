@@ -1,55 +1,63 @@
-using System.Collections.Generic;
+ï»¿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
 public class SimpleMapGenerator : MonoBehaviour
 {
-    [Header("±ØĞëÉèÖÃµÄÒıÓÃ")]
+    [Header("å¿…é¡»è®¾ç½®çš„å¼•ç”¨")]
     public Tilemap groundTilemap;
     public Tilemap wallTilemap;
     public TileBase roadTile;
     public TileBase wallTile;
     public GameObject enemyPrefab;
 
-    [Header("µØÍ¼ÉèÖÃ")]
+    [Header("ç»ˆç‚¹ä¼ é€é—¨")]
+    public GameObject portalPrefab;
+    [Tooltip("ä¼ é€é—¨åœ¨ç»ˆç‚¹æˆ¿é—´ä¸­å¿ƒçš„åç§»(ä¸–ç•Œåæ ‡)")]
+    public Vector3 portalWorldOffset = new Vector3(0.5f, 0.5f, 0f);
+
+    [Header("åœ°å›¾è®¾ç½®")]
     public int gridSize = 4;
     public int spacing = 15;
     public int scale = 2;
 
-    [Header("·¿¼äÉèÖÃ")]
+    [Header("æˆ¿é—´è®¾ç½®")]
     public int minRoomSize = 10;
     public int maxRoomSize = 14;
     public int startRoomSize = 10; // 5 * scale
     public int endRoomInnerSize = 22; // 11 * scale
 
-    [Header("µĞÈËÉú³É")]
+    [Header("æ•Œäººç”Ÿæˆ")]
     public int minEnemiesPerRoom = 1;
     public int maxEnemiesPerRoom = 3;
-    [Tooltip("ÊÇ·ñÔÚÆğµã·¿¼äÉú³ÉµĞÈË")]
+    [Tooltip("æ˜¯å¦åœ¨èµ·ç‚¹æˆ¿é—´ç”Ÿæˆæ•Œäºº")]
     public bool spawnEnemiesInStartRoom = true;
-    [Tooltip("ÊÇ·ñÔÚÖÕµã·¿¼äÉú³ÉµĞÈË")]
+    [Tooltip("æ˜¯å¦åœ¨ç»ˆç‚¹æˆ¿é—´ç”Ÿæˆæ•Œäºº")]
     public bool spawnEnemiesInEndRoom = true;
-    [Tooltip("µĞÈËÖ®¼äµÄ×îĞ¡¼ä¾à£¨¸ñ×ÓÊı£©")]
+    [Tooltip("æ•Œäººä¹‹é—´çš„æœ€å°é—´è·ï¼ˆæ ¼å­æ•°ï¼‰")]
     public float minEnemySpacing = 2.0f;
 
-    // Êı¾İ½á¹¹
-    private int[,] position; // ÄÄĞ©¸ñ×ÓÓĞ·¿¼ä
-    private int[,] finalmap; // ÄÄĞ©¸ñ×Ó±»Á¬½Ó
-    private int[,] px, py;   // Ã¿¸ö¸ñ×Ó¶ÔÓ¦µÄÊÀ½ç×ø±ê
+    // æ•°æ®ç»“æ„
+    private int[,] position; // å“ªäº›æ ¼å­æœ‰æˆ¿é—´
+    private int[,] finalmap; // å“ªäº›æ ¼å­è¢«è¿æ¥
+    private int[,] px, py;   // æ¯ä¸ªæ ¼å­å¯¹åº”çš„ä¸–ç•Œåæ ‡
     private HashSet<Vector3Int> roadSet = new HashSet<Vector3Int>();
     private List<GameObject> enemies = new List<GameObject>();
     private int generationCount = 0;
 
-    // ÆğµãºÍÖÕµã
+    // èµ·ç‚¹å’Œç»ˆç‚¹
     private int sx = 0, sy = 0;
     private Vector2Int endCell;
 
-    // ´æ´¢Ã¿¸ö·¿¼äµÄÎ»ÖÃĞÅÏ¢
+    // å­˜å‚¨æ¯ä¸ªæˆ¿é—´çš„ä½ç½®ä¿¡æ¯
     private Dictionary<Vector2Int, List<Vector3Int>> roomPositions = new Dictionary<Vector2Int, List<Vector3Int>>();
+
+    // ä¼ é€é—¨å®ä¾‹å¼•ç”¨ï¼ˆç”¨äºæ¸…ç†/é˜²é‡å¤ï¼‰
+    private GameObject portalInstance;
 
     void Start()
     {
-        Debug.Log("=== µØÍ¼Éú³ÉÆ÷Æô¶¯ ===");
+        Debug.Log("=== åœ°å›¾ç”Ÿæˆå™¨å¯åŠ¨ ===");
         GenerateNewMap();
     }
 
@@ -64,57 +72,57 @@ public class SimpleMapGenerator : MonoBehaviour
     void GenerateNewMap()
     {
         generationCount++;
-        Debug.Log($"µÚ {generationCount} ´ÎÉú³ÉµØÍ¼");
+        Debug.Log($"ç¬¬ {generationCount} æ¬¡ç”Ÿæˆåœ°å›¾");
 
         CleanPreviousMap();
         gridSize = Random.Range(3, 6);
         InitializeArrays();
 
-        // Çå¿Õ·¿¼äÎ»ÖÃ»º´æ
+        // æ¸…ç©ºæˆ¿é—´ä½ç½®ç¼“å­˜
         roomPositions.Clear();
 
-        // Ëæ»úÉú³É·¿¼ä²¼¾Ö
+        // éšæœºç”Ÿæˆæˆ¿é—´å¸ƒå±€
         GenerateRoomLayout();
 
-        // Á¬½Ó·¿¼ä²¢»æÖÆÂ·¾¶
+        // è¿æ¥æˆ¿é—´å¹¶ç»˜åˆ¶è·¯å¾„
         ConnectRoomsDFS();
 
-        // ¼ì²éÁ¬Í¨ĞÔ£¬È·±£×ã¹»¶àµÄ·¿¼ä±»Á¬½Ó
+        // æ£€æŸ¥è¿é€šæ€§ï¼Œç¡®ä¿è¶³å¤Ÿå¤šçš„æˆ¿é—´è¢«è¿æ¥
         int connected = CountConnectedCells();
         int need = gridSize * gridSize / 3 + 1;
 
         if (connected < need)
         {
-            Debug.Log($"Á¬Í¨·¿¼äÊı²»×ã ({connected}/{need})£¬ÖØĞÂÉú³É");
+            Debug.Log($"è¿é€šæˆ¿é—´æ•°ä¸è¶³ ({connected}/{need})ï¼Œé‡æ–°ç”Ÿæˆ");
             GenerateNewMap();
             return;
         }
 
-        // ÕÒµ½ÖÕµã£¨¾àÀëÆğµã×îÔ¶µÄÒ¶×Ó½Úµã£©
+        // æ‰¾åˆ°ç»ˆç‚¹ï¼ˆè·ç¦»èµ·ç‚¹æœ€è¿œçš„å¶å­èŠ‚ç‚¹ï¼‰
         FindEndCell();
 
-        // ¹¹½¨¸÷ÖÖ·¿¼ä
+        // æ„å»ºå„ç§æˆ¿é—´
         BuildStartRoom();
         BuildNormalRooms();
         BuildEndRoom();
 
-        // Éú³ÉÇ½±Ú
+        // ç”Ÿæˆå¢™å£
         AddWalls();
 
-        // Éú³ÉµĞÈË£¨Ã¿¸ö·¿¼ä¶ÀÁ¢Éú³É£©
+        // ç”Ÿæˆæ•Œäººï¼ˆæ¯ä¸ªæˆ¿é—´ç‹¬ç«‹ç”Ÿæˆï¼‰
         GenerateEnemiesInAllRooms();
 
-        Debug.Log($"Éú³ÉÍê³É£¡Íø¸ñ´óĞ¡: {gridSize}£¬Á¬Í¨·¿¼ä: {connected}/{gridSize * gridSize}£¬ÖÕµã: ({endCell.x},{endCell.y})");
+        Debug.Log($"ç”Ÿæˆå®Œæˆï¼ç½‘æ ¼å¤§å°: {gridSize}ï¼Œè¿é€šæˆ¿é—´: {connected}/{gridSize * gridSize}ï¼Œç»ˆç‚¹: ({endCell.x},{endCell.y})");
     }
 
     void GenerateRoomLayout()
     {
-        // Ëæ»ú¾ö¶¨ÄÄĞ©¸ñ×ÓÓĞ·¿¼ä
+        // éšæœºå†³å®šå“ªäº›æ ¼å­æœ‰æˆ¿é—´
         for (int x = 0; x < gridSize; x++)
         {
             for (int y = 0; y < gridSize; y++)
             {
-                // 30%¸ÅÂÊÓĞ·¿¼ä£¬µ«ÆğµãÒ»¶¨ÓĞ
+                // 30%æ¦‚ç‡æœ‰æˆ¿é—´ï¼Œä½†èµ·ç‚¹ä¸€å®šæœ‰
                 position[x, y] = (x == sx && y == sy) ? 1 : (Random.value > 0.7f ? 1 : 0);
                 finalmap[x, y] = 0;
                 px[x, y] = x * spacing * scale;
@@ -122,7 +130,7 @@ public class SimpleMapGenerator : MonoBehaviour
             }
         }
 
-        // È·±£ÖÁÉÙÓĞÒ»¶¨ÊıÁ¿µÄ·¿¼ä
+        // ç¡®ä¿è‡³å°‘æœ‰ä¸€å®šæ•°é‡çš„æˆ¿é—´
         int roomCount = CountRooms();
         while (roomCount < gridSize)
         {
@@ -147,7 +155,7 @@ public class SimpleMapGenerator : MonoBehaviour
 
     void ConnectRoomsDFS()
     {
-        // ÖØÖÃÁ¬½Ó×´Ì¬
+        // é‡ç½®è¿æ¥çŠ¶æ€
         for (int x = 0; x < gridSize; x++)
             for (int y = 0; y < gridSize; y++)
                 finalmap[x, y] = 0;
@@ -161,7 +169,7 @@ public class SimpleMapGenerator : MonoBehaviour
         int[] dx = { 1, -1, 0, 0 };
         int[] dy = { 0, 0, 1, -1 };
 
-        // Ëæ»úË³Ğò·ÃÎÊÁÚ¾Ó
+        // éšæœºé¡ºåºè®¿é—®é‚»å±…
         List<int> indices = new List<int> { 0, 1, 2, 3 };
         Shuffle(indices);
 
@@ -176,7 +184,7 @@ public class SimpleMapGenerator : MonoBehaviour
 
             finalmap[nx, ny] = 1;
 
-            // »æÖÆ¼Ó´ÖµÄÁ¬½ÓÂ·¾¶
+            // ç»˜åˆ¶åŠ ç²—çš„è¿æ¥è·¯å¾„
             DrawThickPath(x, y, nx, ny);
 
             DFSConnect(nx, ny);
@@ -192,7 +200,6 @@ public class SimpleMapGenerator : MonoBehaviour
 
         if (worldX1 == worldX2)
         {
-            // ´¹Ö±Â·¾¶£¬ÔÚX·½Ïò¼Ó´Ö
             int startY = Mathf.Min(worldY1, worldY2);
             int endY = Mathf.Max(worldY1, worldY2);
 
@@ -208,7 +215,6 @@ public class SimpleMapGenerator : MonoBehaviour
         }
         else if (worldY1 == worldY2)
         {
-            // Ë®Æ½Â·¾¶£¬ÔÚY·½Ïò¼Ó´Ö
             int startX = Mathf.Min(worldX1, worldX2);
             int endX = Mathf.Max(worldX1, worldX2);
 
@@ -235,7 +241,6 @@ public class SimpleMapGenerator : MonoBehaviour
 
     void FindEndCell()
     {
-        // BFS¼ÆËã¾àÀë
         int[,] dist = new int[gridSize, gridSize];
         for (int x = 0; x < gridSize; x++)
             for (int y = 0; y < gridSize; y++)
@@ -266,7 +271,6 @@ public class SimpleMapGenerator : MonoBehaviour
             }
         }
 
-        // ÕÒµ½¾àÀë×îÔ¶µÄÒ¶×Ó½Úµã£¨¶ÈÊıÎª1£©
         endCell = new Vector2Int(sx, sy);
         int maxDist = -1;
 
@@ -277,7 +281,6 @@ public class SimpleMapGenerator : MonoBehaviour
                 if (finalmap[x, y] != 1 || position[x, y] != 1) continue;
                 if (x == sx && y == sy) continue;
 
-                // ¼ÆËã¶ÈÊı
                 int degree = 0;
                 for (int k = 0; k < 4; k++)
                 {
@@ -322,12 +325,40 @@ public class SimpleMapGenerator : MonoBehaviour
     {
         Vector3Int center = new Vector3Int(px[endCell.x, endCell.y], py[endCell.x, endCell.y], 0);
 
-        // ÄÚ²¿·¿¼ä
+        // å†…éƒ¨æˆ¿é—´
         FillRectCentered(center, endRoomInnerSize, endRoomInnerSize, endCell);
 
-        // Íâ²¿Ç½±Ú£¨´øÃÅ£©
+        // å¤–éƒ¨å¢™å£ï¼ˆå¸¦é—¨ï¼‰
         int outerSize = endRoomInnerSize + 2;
         AddRoomWalls(center, outerSize, outerSize);
+
+        // âœ…åœ¨ç»ˆç‚¹æˆ¿é—´ç”Ÿæˆä¼ é€é—¨
+        SpawnPortalAtEndRoom(center);
+    }
+
+    void SpawnPortalAtEndRoom(Vector3Int endRoomCenterCell)
+    {
+        if (portalPrefab == null) return;
+
+        // å…ˆæ¸…æ‰æ—§çš„
+        if (portalInstance != null) Destroy(portalInstance);
+
+        // ç”Ÿæˆå®¹å™¨ï¼ˆå¯é€‰ï¼‰
+        Transform portalContainer = GameObject.Find("Portal")?.transform;
+        if (portalContainer == null)
+        {
+            portalContainer = new GameObject("Portal").transform;
+        }
+
+        // è®¡ç®—ä¸–ç•Œåæ ‡ï¼šç”¨ Tilemap çš„ CellToWorld æ›´å‡†ç¡®
+        Vector3 baseWorldPos = groundTilemap.CellToWorld(endRoomCenterCell);
+        Vector3 spawnWorldPos = baseWorldPos + portalWorldOffset;
+
+        portalInstance = Instantiate(portalPrefab, spawnWorldPos, Quaternion.identity);
+        portalInstance.name = "EndPortal";
+        portalInstance.transform.SetParent(portalContainer, true);
+
+        Debug.Log($"ç»ˆç‚¹ä¼ é€é—¨å·²ç”Ÿæˆï¼šcell({endCell.x},{endCell.y}) worldPos={spawnWorldPos}");
     }
 
     void FillRectCentered(Vector3Int center, int sizeX, int sizeY, Vector2Int roomCoord)
@@ -337,7 +368,6 @@ public class SimpleMapGenerator : MonoBehaviour
         int startY = -sizeY / 2;
         int endY = startY + sizeY - 1;
 
-        // ÎªÕâ¸ö·¿¼ä´´½¨Î»ÖÃÁĞ±í
         List<Vector3Int> roomCells = new List<Vector3Int>();
 
         for (int dx = startX; dx <= endX; dx++)
@@ -347,13 +377,10 @@ public class SimpleMapGenerator : MonoBehaviour
                 Vector3Int pos = new Vector3Int(center.x + dx, center.y + dy, 0);
                 SetTile(groundTilemap, pos, roadTile);
                 roadSet.Add(pos);
-
-                // Ìí¼Óµ½·¿¼äÎ»ÖÃÁĞ±í
                 roomCells.Add(pos);
             }
         }
 
-        // ±£´æÕâ¸ö·¿¼äµÄËùÓĞÎ»ÖÃ
         roomPositions[roomCoord] = roomCells;
     }
 
@@ -368,15 +395,11 @@ public class SimpleMapGenerator : MonoBehaviour
         {
             for (int dy = startY; dy <= endY; dy++)
             {
-                // Ö»´¦Àí±ß½ç
                 if (dx != startX && dx != endX && dy != startY && dy != endY) continue;
 
                 Vector3Int pos = new Vector3Int(center.x + dx, center.y + dy, 0);
 
-                // ¼ì²éÍâ²¿ÊÇ·ñÓĞµÀÂ·£¬ÓĞµÄ»°¾Í¿ªÃÅ
                 bool isDoor = false;
-
-                // ¼ì²éËÄ¸ö·½Ïò
                 if (dx == startX && roadSet.Contains(pos + Vector3Int.right)) isDoor = true;
                 if (dx == endX && roadSet.Contains(pos + Vector3Int.left)) isDoor = true;
                 if (dy == startY && roadSet.Contains(pos + Vector3Int.up)) isDoor = true;
@@ -384,13 +407,11 @@ public class SimpleMapGenerator : MonoBehaviour
 
                 if (isDoor)
                 {
-                    // ¿ªÃÅ£ºÉèÎªµÀÂ·
                     SetTile(groundTilemap, pos, roadTile);
                     roadSet.Add(pos);
                 }
                 else if (!roadSet.Contains(pos))
                 {
-                    // Ã»ÓĞµÀÂ·µÄµØ·½ÉèÎªÇ½±Ú
                     SetTile(wallTilemap, pos, wallTile);
                 }
             }
@@ -399,12 +420,10 @@ public class SimpleMapGenerator : MonoBehaviour
 
     void AddWalls()
     {
-        // ÊÕ¼¯ËùÓĞĞèÒª¼ì²éµÄºòÑ¡Î»ÖÃ
         HashSet<Vector3Int> candidates = new HashSet<Vector3Int>();
 
         foreach (var pos in roadSet)
         {
-            // ¼ì²é8¸öÏàÁÚ·½Ïò
             for (int dx = -1; dx <= 1; dx++)
             {
                 for (int dy = -1; dy <= 1; dy++)
@@ -412,7 +431,6 @@ public class SimpleMapGenerator : MonoBehaviour
                     if (dx == 0 && dy == 0) continue;
                     Vector3Int neighbor = new Vector3Int(pos.x + dx, pos.y + dy, 0);
 
-                    // Èç¹ûÁÚ¾Ó²»ÊÇµÀÂ·ÇÒ»¹Ã»ÓĞÇ½±Ú
                     if (!roadSet.Contains(neighbor) && wallTilemap.GetTile(neighbor) == null)
                     {
                         candidates.Add(neighbor);
@@ -421,7 +439,6 @@ public class SimpleMapGenerator : MonoBehaviour
             }
         }
 
-        // ÉèÖÃÇ½±Ú
         foreach (var pos in candidates)
         {
             SetTile(wallTilemap, pos, wallTile);
@@ -432,7 +449,6 @@ public class SimpleMapGenerator : MonoBehaviour
     {
         if (enemyPrefab == null) return;
 
-        // ÇåÀí¾ÉµÄµĞÈË
         foreach (var enemy in enemies)
         {
             if (enemy != null) Destroy(enemy);
@@ -441,27 +457,20 @@ public class SimpleMapGenerator : MonoBehaviour
 
         GameObject enemyContainer = new GameObject("Enemies");
 
-        // ÎªÃ¿¸ö·¿¼äÉú³ÉµĞÈË
         foreach (var roomEntry in roomPositions)
         {
             Vector2Int roomCoord = roomEntry.Key;
             List<Vector3Int> roomCells = roomEntry.Value;
 
-            // Ìø¹ıÆğµã·¿¼äºÍÖÕµã·¿¼ä£¨Èç¹ûĞèÒª£©
             if (roomCoord.x == sx && roomCoord.y == sy && !spawnEnemiesInStartRoom) continue;
             if (roomCoord.x == endCell.x && roomCoord.y == endCell.y && !spawnEnemiesInEndRoom) continue;
 
-            // Ëæ»ú¾ö¶¨Õâ¸ö·¿¼äÉú³É¶àÉÙµĞÈË
             int enemyCountInRoom = Random.Range(minEnemiesPerRoom, maxEnemiesPerRoom + 1);
-
-            // È·±£µĞÈËÊıÁ¿²»³¬¹ı·¿¼ä¿ÉÓÃÎ»ÖÃ
             enemyCountInRoom = Mathf.Min(enemyCountInRoom, roomCells.Count);
 
-            // ´òÂÒ·¿¼äÎ»ÖÃ£¬Ëæ»úÑ¡ÔñÉú³Éµã
             List<Vector3Int> shuffledCells = new List<Vector3Int>(roomCells);
             Shuffle(shuffledCells);
 
-            // ÊÕ¼¯ÒÑÉú³ÉµÄµĞÈËÎ»ÖÃ£¬ÓÃÓÚ¼ä¾à¼ì²é
             List<Vector3> placedEnemyPositions = new List<Vector3>();
 
             int enemiesPlaced = 0;
@@ -470,7 +479,6 @@ public class SimpleMapGenerator : MonoBehaviour
                 Vector3Int cellPos = shuffledCells[i];
                 Vector3 worldPos = groundTilemap.CellToWorld(cellPos) + new Vector3(0.5f, 0.5f, 0);
 
-                // ¼ì²éÓëÆäËûµĞÈËµÄ¼ä¾à
                 bool tooClose = false;
                 foreach (Vector3 placedPos in placedEnemyPositions)
                 {
@@ -488,31 +496,22 @@ public class SimpleMapGenerator : MonoBehaviour
                     enemies.Add(enemy);
                     placedEnemyPositions.Add(worldPos);
                     enemiesPlaced++;
-
-                    Debug.Log($"ÔÚ·¿¼ä({roomCoord.x},{roomCoord.y})Éú³ÉµĞÈË {enemiesPlaced}/{enemyCountInRoom}£¬Î»ÖÃ: {worldPos}");
                 }
             }
 
             if (enemiesPlaced < enemyCountInRoom)
             {
-                Debug.LogWarning($"·¿¼ä({roomCoord.x},{roomCoord.y})Ö»Éú³ÉÁË{enemiesPlaced}¸öµĞÈË£¬Ä¿±ê{enemyCountInRoom}£¨¿ÉÄÜÒòÎª¼ä¾àÏŞÖÆ£©");
+                Debug.LogWarning($"æˆ¿é—´({roomCoord.x},{roomCoord.y})åªç”Ÿæˆäº†{enemiesPlaced}ä¸ªæ•Œäººï¼Œç›®æ ‡{enemyCountInRoom}ï¼ˆå¯èƒ½å› ä¸ºé—´è·é™åˆ¶ï¼‰");
             }
         }
 
-        Debug.Log($"×Ü¹²Éú³É {enemies.Count} ¸öµĞÈË£¬·Ö²¼ÔÚ {roomPositions.Count} ¸ö·¿¼äÖĞ");
+        Debug.Log($"æ€»å…±ç”Ÿæˆ {enemies.Count} ä¸ªæ•Œäººï¼Œåˆ†å¸ƒåœ¨ {roomPositions.Count} ä¸ªæˆ¿é—´ä¸­");
     }
 
     void CleanPreviousMap()
     {
-        if (groundTilemap != null)
-        {
-            groundTilemap.ClearAllTiles();
-        }
-
-        if (wallTilemap != null)
-        {
-            wallTilemap.ClearAllTiles();
-        }
+        if (groundTilemap != null) groundTilemap.ClearAllTiles();
+        if (wallTilemap != null) wallTilemap.ClearAllTiles();
 
         roadSet.Clear();
         roomPositions.Clear();
@@ -522,9 +521,17 @@ public class SimpleMapGenerator : MonoBehaviour
             if (enemy != null) Destroy(enemy);
         }
         enemies.Clear();
+
+        if (portalInstance != null) Destroy(portalInstance);
+        portalInstance = null;
+
+        var portalObj = GameObject.Find("Portal");
+        if (portalObj != null) Destroy(portalObj);
+
+        var enemiesObj = GameObject.Find("Enemies");
+        if (enemiesObj != null) Destroy(enemiesObj);
     }
 
-    // ¹¤¾ß·½·¨
     void SetTile(Tilemap tilemap, Vector3Int pos, TileBase tile)
     {
         if (tilemap != null && tile != null)
@@ -544,17 +551,17 @@ public class SimpleMapGenerator : MonoBehaviour
         }
     }
 
-    [ContextMenu("ÖØĞÂÉú³ÉµØÍ¼")]
+    [ContextMenu("é‡æ–°ç”Ÿæˆåœ°å›¾")]
     public void Regenerate()
     {
         GenerateNewMap();
     }
 
-    [ContextMenu("ÇåÀíËùÓĞ")]
+    [ContextMenu("æ¸…ç†æ‰€æœ‰")]
     public void CleanAll()
     {
         CleanPreviousMap();
-        Debug.Log("ÒÑÇåÀíËùÓĞ");
+        Debug.Log("å·²æ¸…ç†æ‰€æœ‰");
     }
 
     void OnDrawGizmos()
@@ -567,7 +574,6 @@ public class SimpleMapGenerator : MonoBehaviour
             Gizmos.DrawWireCube(new Vector3(totalSize / 2 - cellSize / 2, totalSize / 2 - cellSize / 2, 0),
                                new Vector3(totalSize, totalSize, 0));
 
-            // »æÖÆ·¿¼äÎ»ÖÃ
             Gizmos.color = Color.green;
             for (int x = 0; x < gridSize; x++)
             {

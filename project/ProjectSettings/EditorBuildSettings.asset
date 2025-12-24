@@ -11,10 +11,13 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/main_game.unity
     guid: 82616fb5dbc26814ab3ff8e90befdb34
-  - enabled: 0
+  - enabled: 1
+    path: Assets/game1.unity
+    guid: 28d1df37fbe3abd45ad221a028e251a0
+  - enabled: 1
     path: Assets/SampleScene.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
-  - enabled: 1
+  - enabled: 0
     path: Assets/game2.unity
     guid: 9f81278063eb94848b97f6c9a5d57daa
   m_configObjects:

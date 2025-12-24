@@ -69,6 +69,28 @@ public class PlayerWeaponController : MonoBehaviour
         handLeft = FindChildByName(transform, handLeftName);
         handRight = FindChildByName(transform, handRightName);
     }
+    public void RebuildWeapon()
+    {
+        // 找挂点（名字和 Inspector 里一致）
+        Transform hand = transform.Find("WeaponHand_up");
+        if (hand == null)
+        {
+            Debug.LogWarning("RebuildWeapon: 未找到 WeaponHand_up");
+            return;
+        }
+
+        // 已经有武器就不重复生成
+        if (hand.childCount > 0) return;
+
+        // Weapon Prefab（字段名按你脚本真实名字改）
+        if (weaponPrefab == null)   // 如果你字段叫 weaponPrefab，就改成 weaponPrefab
+        {
+            Debug.LogWarning("RebuildWeapon: WeaponPrefab 为空");
+            return;
+        }
+
+        Instantiate(weaponPrefab, hand.position, Quaternion.identity, hand);
+    }
 
     Transform FindChildByName(Transform root, string targetName)
     {

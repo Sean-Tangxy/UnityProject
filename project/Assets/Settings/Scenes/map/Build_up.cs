@@ -31,6 +31,13 @@ public class MapGenerator : MonoBehaviour
     public bool spawnEnemiesInStartRoom = false;
     public bool spawnEnemiesInEndRoom = true;
 
+    [Header("传送门生成")]
+    public GameObject portalPrefab;
+    public bool spawnPortalInEndRoom = true;
+    public Vector2 portalOffset = new Vector2(0.5f, 0.5f); // 对齐格子中心
+    public bool avoidNearWallForPortal = true;             // 尽量别贴墙
+    [System.NonSerialized] private GameObject spawnedPortal;
+
     [Header("调试")]
     public bool drawGizmos = true;
     public bool logDetails = true;
@@ -73,6 +80,9 @@ public class MapGenerator : MonoBehaviour
         // 7. 添加周围墙壁
         AddSurroundingWalls();
 
+        // 8. 在终点房间生成传送门
+        GenerateEndPortal();
+
         if (logDetails)
         {
             Debug.Log($"地图生成完成！");
@@ -80,6 +90,7 @@ public class MapGenerator : MonoBehaviour
             Debug.Log($"- 道路格子: {roadPositions.Count}");
             Debug.Log($"- 敌人数量: {spawnedEnemies.Count}");
             Debug.Log($"- 地图网格: {mapGridSize}x{mapGridSize}");
+            Debug.Log($"- 传送门: {(spawnedPortal != null ? spawnedPortal.name : "未生成")}");
         }
     }
 
@@ -96,6 +107,10 @@ public class MapGenerator : MonoBehaviour
         }
         spawnedEnemies.Clear();
 
+        // 清理传送门
+        if (spawnedPortal != null) Destroy(spawnedPortal);
+        spawnedPortal = null;
+
         // 清理数据
         rooms.Clear();
         roadPositions.Clear();
@@ -110,8 +125,8 @@ public class MapGenerator : MonoBehaviour
         Random.InitState(seed);
         if (logDetails) Debug.Log($"随机种子: {seed}");
 
-        // 随机地图大小（3-6）
-        mapGridSize = Random.Range(3, 6);
+        // 随机地图大小（3-6）  注意：Random.Range(int,int) 上限不包含，所以用 7 才能取到 6
+        mapGridSize = Random.Range(3, 7);
     }
 
     #region 房间生成
@@ -347,7 +362,7 @@ public class MapGenerator : MonoBehaviour
 
                 Vector3Int pos = new Vector3Int(room.worldCenter.x + dx, room.worldCenter.y + dy, 0);
 
-                // 检查外部是否有道路
+                // 检查外部是否有道路 -> 作为门洞
                 bool shouldBeDoor = false;
                 if (dx == -outerHalfWidth) shouldBeDoor = roadPositions.Contains(pos + new Vector3Int(-1, 0, 0));
                 else if (dx == outerHalfWidth) shouldBeDoor = roadPositions.Contains(pos + new Vector3Int(1, 0, 0));
@@ -444,6 +459,103 @@ public class MapGenerator : MonoBehaviour
         }
 
         return Vector3.zero;
+    }
+    #endregion
+
+    #region 传送门生成（终点房间）
+    void GenerateEndPortal()
+    {
+        if (!spawnPortalInEndRoom) return;
+
+        if (portalPrefab == null)
+        {
+            if (logDetails) Debug.LogWarning("未设置 portalPrefab，跳过传送门生成");
+            return;
+        }
+
+        Room endRoom = rooms.Find(r => r.isEndRoom);
+        if (endRoom == null)
+        {
+            if (logDetails) Debug.LogWarning("没有找到终点房间，跳过传送门生成");
+            return;
+        }
+
+        Vector3Int tilePos = FindValidPortalTileInRoom(endRoom);
+        if (tilePos.x == int.MinValue)
+        {
+            if (logDetails) Debug.LogWarning("没有找到合适的传送门落点（终点房间内无路面格子？）");
+            return;
+        }
+
+        Vector3 worldPos = new Vector3(tilePos.x, tilePos.y, 0) + (Vector3)portalOffset;
+
+        spawnedPortal = Instantiate(portalPrefab, worldPos, Quaternion.identity);
+        spawnedPortal.name = $"Portal_EndRoom_{endRoom.gridPosition.x}_{endRoom.gridPosition.y}";
+        spawnedPortal.transform.SetParent(transform);
+
+        if (logDetails) Debug.Log($"已在终点房间生成传送门: tile({tilePos.x},{tilePos.y}) world({worldPos.x:F2},{worldPos.y:F2})");
+    }
+
+    Vector3Int FindValidPortalTileInRoom(Room room)
+    {
+        Vector3Int center = room.worldCenter;
+
+        int halfW = room.width / 2;
+        int halfH = room.height / 2;
+
+        // 先从中心向外扩散找“路面且不贴墙”的位置
+        int maxR = Mathf.Max(halfW, halfH);
+        for (int r = 0; r <= maxR; r++)
+        {
+            for (int dx = -r; dx <= r; dx++)
+            {
+                for (int dy = -r; dy <= r; dy++)
+                {
+                    // 只检查这一圈边界
+                    if (Mathf.Abs(dx) != r && Mathf.Abs(dy) != r) continue;
+
+                    // 必须在房间边界内（严格限制在房间内部）
+                    if (dx < -halfW || dx > halfW || dy < -halfH || dy > halfH) continue;
+
+                    Vector3Int p = new Vector3Int(center.x + dx, center.y + dy, 0);
+
+                    if (!roadPositions.Contains(p)) continue;
+
+                    if (avoidNearWallForPortal && IsNearWall(p)) continue;
+
+                    return p;
+                }
+            }
+        }
+
+        // 找不到“不贴墙”的，就退一步：房间内任意路面都行
+        for (int dx = -halfW; dx <= halfW; dx++)
+        {
+            for (int dy = -halfH; dy <= halfH; dy++)
+            {
+                Vector3Int p = new Vector3Int(center.x + dx, center.y + dy, 0);
+                if (roadPositions.Contains(p)) return p;
+            }
+        }
+
+        return new Vector3Int(int.MinValue, int.MinValue, 0);
+    }
+
+    bool IsNearWall(Vector3Int tilePos)
+    {
+        if (wallTilemap == null) return false;
+
+        // 8邻域有墙则判定靠近墙
+        for (int dx = -1; dx <= 1; dx++)
+        {
+            for (int dy = -1; dy <= 1; dy++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                Vector3Int n = new Vector3Int(tilePos.x + dx, tilePos.y + dy, 0);
+                if (wallTilemap.GetTile(n) != null) return true;
+            }
+        }
+        return false;
     }
     #endregion
 
@@ -544,6 +656,7 @@ public class MapGenerator : MonoBehaviour
         Debug.Log($"房间数量: {rooms.Count}");
         Debug.Log($"道路格子: {roadPositions.Count}");
         Debug.Log($"敌人数量: {spawnedEnemies.Count}");
+        Debug.Log($"传送门: {(spawnedPortal != null ? spawnedPortal.name : "未生成")}");
 
         foreach (var room in rooms)
         {
@@ -592,6 +705,13 @@ public class MapGenerator : MonoBehaviour
                 Gizmos.DrawSphere(enemy.transform.position, 0.5f);
             }
         }
+
+        // 绘制传送门
+        if (spawnedPortal != null)
+        {
+            Gizmos.color = Color.cyan;
+            Gizmos.DrawWireSphere(spawnedPortal.transform.position, 0.8f);
+        }
     }
 
     void OnGUI()
@@ -605,16 +725,17 @@ public class MapGenerator : MonoBehaviour
         string info = $"地图: {mapGridSize}x{mapGridSize}\n" +
                      $"房间: {rooms.Count}\n" +
                      $"敌人: {spawnedEnemies.Count}\n" +
-                     $"生成: #{generationId}";
+                     $"生成: #{generationId}\n" +
+                     $"传送门: {(spawnedPortal != null ? "已生成" : "无")}";
 
-        GUI.Box(new Rect(10, 10, 150, 80), info, boxStyle);
+        GUI.Box(new Rect(10, 10, 170, 95), info, boxStyle);
 
-        if (GUI.Button(new Rect(10, 100, 150, 30), "重新生成"))
+        if (GUI.Button(new Rect(10, 115, 170, 30), "重新生成"))
         {
             RegenerateMap();
         }
 
-        if (GUI.Button(new Rect(10, 140, 150, 30), "显示信息"))
+        if (GUI.Button(new Rect(10, 155, 170, 30), "显示信息"))
         {
             LogMapInfo();
         }
