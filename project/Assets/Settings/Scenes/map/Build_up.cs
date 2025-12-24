@@ -1,350 +1,623 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Tilemaps;
 
-public class Build_up : MonoBehaviour
+public class MapGenerator : MonoBehaviour
 {
     [Header("Tilemaps")]
-    public Tilemap groundTilemap;   // �� road
-    public Tilemap wallTilemap;     // �� wall���� TilemapCollider2D + CompositeCollider2D + Rigidbody2D(Static)��
+    public Tilemap groundTilemap;
+    public Tilemap wallTilemap;
 
     [Header("Tiles")]
-    public TileBase road;
-    public TileBase wall;
+    public TileBase roadTile;
+    public TileBase wallTile;
 
-    [Header("Map")]
-    public int map_n = 6;           // <=10
-    public int baseCellSpacing = 15;
+    [Header("地图设置")]
+    [Range(3, 6)] public int mapGridSize = 4;      // 3x3 到 6x6 的网格
+    public int roomSpacing = 20;                   // 房间之间的间距
+    [Range(1, 3)] public int scale = 2;            // 整体缩放
 
-    [Header("Scale")]
-    public int scale = 2;           // ���巭��
+    [Header("房间设置")]
+    public int startRoomSize = 5;                  // 起始房间大小（格子数）
+    public int endRoomSize = 11;                   // 终点房间大小
+    [Range(2, 4)] public int minRoomSize = 2;      // 最小房间大小参数
+    [Range(3, 5)] public int maxRoomSize = 3;      // 最大房间大小参数
 
-    int[,] position = new int[10, 10];
-    int[,] finalmap = new int[10, 10];
-    int[,] px = new int[10, 10];
-    int[,] py = new int[10, 10];
+    [Header("敌人生成")]
+    public GameObject enemyPrefab;
+    [Range(1, 5)] public int minEnemiesPerRoom = 1;
+    [Range(1, 5)] public int maxEnemiesPerRoom = 3;
+    public float enemySpawnMargin = 1.5f;          // 距离墙壁的边距
+    public bool spawnEnemiesInStartRoom = false;
+    public bool spawnEnemiesInEndRoom = true;
 
-    int sx = 0, sy = 0;
+    [Header("调试")]
+    public bool drawGizmos = true;
+    public bool logDetails = true;
 
-    HashSet<Vector3Int> roadSet = new HashSet<Vector3Int>();
+    // 运行时数据（不序列化，每次重新生成）
+    [System.NonSerialized] private List<Room> rooms = new List<Room>();
+    [System.NonSerialized] private HashSet<Vector3Int> roadPositions = new HashSet<Vector3Int>();
+    [System.NonSerialized] private List<GameObject> spawnedEnemies = new List<GameObject>();
+    [System.NonSerialized] private int generationId = 0;
 
-    void Awake()
+    void Start()
     {
-        Generate();
+        // 确保每次都是全新生成
+        GenerateCompleteMap();
     }
 
-    void ClearAll()
+    void GenerateCompleteMap()
     {
-        groundTilemap.ClearAllTiles();
-        wallTilemap.ClearAllTiles();
-        roadSet.Clear();
-    }
+        generationId++;
+        if (logDetails) Debug.Log($"=== 第 {generationId} 次地图生成开始 ===");
 
-    void SetRoad(Vector3Int p)
-    {
-        groundTilemap.SetTile(p, road);
-        roadSet.Add(p);
-    }
+        // 1. 完全清理
+        ClearEverything();
 
-    void SetWall(Vector3Int p)
-    {
-        if (roadSet.Contains(p)) return;
-        if (wallTilemap.GetTile(p) != null) return;
-        wallTilemap.SetTile(p, wall);
-    }
+        // 2. 初始化随机种子
+        InitializeRandom();
 
-    // ���Ķ��������Σ�֧��ż���ߴ磩
-    void FillRectCentered(Vector3Int center, int sizeX, int sizeY)
-    {
-        int startX = -sizeX / 2;
-        int endX = startX + sizeX - 1;
-        int startY = -sizeY / 2;
-        int endY = startY + sizeY - 1;
+        // 3. 生成房间布局
+        GenerateRoomLayout();
 
-        for (int dx = startX; dx <= endX; dx++)
-            for (int dy = startY; dy <= endY; dy++)
-                SetRoad(new Vector3Int(center.x + dx, center.y + dy, 0));
-    }
+        // 4. 连接所有房间
+        ConnectAllRooms();
 
-    // �߿�ǽ��=1���������·���ţ��ø���Ϊ road������ǽ��
-    void BorderRectCentered_WallWithDoor(Vector3Int center, int sizeX, int sizeY)
-    {
-        int startX = -sizeX / 2;
-        int endX = startX + sizeX - 1;
-        int startY = -sizeY / 2;
-        int endY = startY + sizeY - 1;
+        // 5. 构建房间（渲染到Tilemap）
+        BuildAllRooms();
 
-        for (int dx = startX; dx <= endX; dx++)
+        // 6. 生成敌人（基于当前生成的地图）
+        GenerateAllEnemies();
+
+        // 7. 添加周围墙壁
+        AddSurroundingWalls();
+
+        if (logDetails)
         {
-            for (int dy = startY; dy <= endY; dy++)
+            Debug.Log($"地图生成完成！");
+            Debug.Log($"- 房间数量: {rooms.Count}");
+            Debug.Log($"- 道路格子: {roadPositions.Count}");
+            Debug.Log($"- 敌人数量: {spawnedEnemies.Count}");
+            Debug.Log($"- 地图网格: {mapGridSize}x{mapGridSize}");
+        }
+    }
+
+    void ClearEverything()
+    {
+        // 清理Tilemap
+        if (groundTilemap != null) groundTilemap.ClearAllTiles();
+        if (wallTilemap != null) wallTilemap.ClearAllTiles();
+
+        // 清理敌人
+        foreach (var enemy in spawnedEnemies)
+        {
+            if (enemy != null) Destroy(enemy);
+        }
+        spawnedEnemies.Clear();
+
+        // 清理数据
+        rooms.Clear();
+        roadPositions.Clear();
+
+        if (logDetails) Debug.Log("场景清理完成");
+    }
+
+    void InitializeRandom()
+    {
+        // 使用时间和帧数确保每次不同
+        int seed = (int)(Time.realtimeSinceStartup * 1000) + Time.frameCount;
+        Random.InitState(seed);
+        if (logDetails) Debug.Log($"随机种子: {seed}");
+
+        // 随机地图大小（3-6）
+        mapGridSize = Random.Range(3, 6);
+    }
+
+    #region 房间生成
+    void GenerateRoomLayout()
+    {
+        // 创建网格位置
+        int spacing = roomSpacing * scale;
+
+        for (int gridX = 0; gridX < mapGridSize; gridX++)
+        {
+            for (int gridY = 0; gridY < mapGridSize; gridY++)
             {
-                bool isBorder = (dx == startX || dx == endX || dy == startY || dy == endY);
-                if (!isBorder) continue;
+                // 随机决定是否有房间（70%几率）
+                bool hasRoom = Random.value > 0.3f;
+                if (gridX == 0 && gridY == 0) hasRoom = true; // 起点必须有房间
 
-                Vector3Int p = new Vector3Int(center.x + dx, center.y + dy, 0);
+                if (hasRoom)
+                {
+                    // 计算世界坐标
+                    int worldX = gridX * spacing;
+                    int worldY = gridY * spacing;
 
-                Vector3Int outward = Vector3Int.zero;
-                if (dx == startX) outward = new Vector3Int(-1, 0, 0);
-                else if (dx == endX) outward = new Vector3Int(1, 0, 0);
-                else if (dy == startY) outward = new Vector3Int(0, -1, 0);
-                else if (dy == endY) outward = new Vector3Int(0, 1, 0);
+                    // 确定房间类型
+                    bool isStart = (gridX == 0 && gridY == 0);
+                    bool isEnd = false; // 将在后续确定
 
-                Vector3Int outside = p + outward;
+                    // 创建房间
+                    Room room = new Room
+                    {
+                        gridPosition = new Vector2Int(gridX, gridY),
+                        worldCenter = new Vector3Int(worldX, worldY, 0),
+                        isStartRoom = isStart,
+                        isEndRoom = isEnd
+                    };
 
-                if (roadSet.Contains(outside))
-                    SetRoad(p);   // ����
-                else
-                    SetWall(p);
+                    // 设置房间大小
+                    if (isStart)
+                    {
+                        room.width = startRoomSize * scale;
+                        room.height = startRoomSize * scale;
+                    }
+                    else
+                    {
+                        int sizeParam = Random.Range(minRoomSize, maxRoomSize + 1);
+                        room.width = (2 * sizeParam + 1) * scale;
+                        room.height = (2 * sizeParam + 1) * scale;
+                    }
+
+                    rooms.Add(room);
+                }
+            }
+        }
+
+        // 设置终点房间（离起点最远的房间）
+        SetEndRoom();
+
+        if (logDetails) Debug.Log($"生成了 {rooms.Count} 个房间");
+    }
+
+    void SetEndRoom()
+    {
+        if (rooms.Count < 2) return;
+
+        Room startRoom = rooms.Find(r => r.isStartRoom);
+        if (startRoom == null) return;
+
+        Room farthestRoom = null;
+        float maxDistance = 0;
+
+        foreach (var room in rooms)
+        {
+            if (room.isStartRoom) continue;
+
+            float distance = Vector2Int.Distance(room.gridPosition, startRoom.gridPosition);
+            if (distance > maxDistance)
+            {
+                maxDistance = distance;
+                farthestRoom = room;
+            }
+        }
+
+        if (farthestRoom != null)
+        {
+            farthestRoom.isEndRoom = true;
+            farthestRoom.width = endRoomSize * scale;
+            farthestRoom.height = endRoomSize * scale;
+
+            if (logDetails) Debug.Log($"终点房间: ({farthestRoom.gridPosition.x}, {farthestRoom.gridPosition.y})");
+        }
+    }
+    #endregion
+
+    #region 房间连接
+    void ConnectAllRooms()
+    {
+        // 确保所有房间都连接到起点
+        HashSet<Vector2Int> connectedRooms = new HashSet<Vector2Int>();
+        Queue<Vector2Int> roomQueue = new Queue<Vector2Int>();
+
+        // 从起点开始
+        Room startRoom = rooms.Find(r => r.isStartRoom);
+        if (startRoom == null) return;
+
+        connectedRooms.Add(startRoom.gridPosition);
+        roomQueue.Enqueue(startRoom.gridPosition);
+
+        while (roomQueue.Count > 0)
+        {
+            Vector2Int current = roomQueue.Dequeue();
+            Room currentRoom = GetRoomAtGrid(current);
+
+            // 检查四个方向的邻居
+            Vector2Int[] directions = {
+                new Vector2Int(1, 0),  // 右
+                new Vector2Int(-1, 0), // 左
+                new Vector2Int(0, 1),  // 上
+                new Vector2Int(0, -1)  // 下
+            };
+
+            foreach (var dir in directions)
+            {
+                Vector2Int neighborPos = current + dir;
+                Room neighborRoom = GetRoomAtGrid(neighborPos);
+
+                if (neighborRoom != null && !connectedRooms.Contains(neighborPos))
+                {
+                    // 连接这两个房间
+                    ConnectTwoRooms(currentRoom, neighborRoom);
+
+                    connectedRooms.Add(neighborPos);
+                    roomQueue.Enqueue(neighborPos);
+                }
             }
         }
     }
 
-    // ====== �ؼ������ȡ��Ӵ֡� ======
-    // vertical=true ��ʾ���ȷ����ǡ���ֱ��(y�仯)����Ҫ�� x ����ˢ����
-    // vertical=false ��ʾ���ȷ����ǡ�ˮƽ��(x�仯)����Ҫ�� y ����ˢ����
-    void PaintThickPoint(int x, int y, bool vertical)
+    void ConnectTwoRooms(Room roomA, Room roomB)
     {
-        // �ÿ��Ⱦ��������С���scale=2 -> ƫ��Ϊ -1,0��scale=3 -> -1,0,1
-        int oStart = -(scale / 2);
-        int oEnd = oStart + scale - 1;
+        Vector3Int start = roomA.worldCenter;
+        Vector3Int end = roomB.worldCenter;
 
-        if (vertical)
+        // 绘制加宽的走廊
+        if (start.x == end.x) // 垂直走廊
         {
-            for (int ox = oStart; ox <= oEnd; ox++)
-                SetRoad(new Vector3Int(x + ox, y, 0));
+            int yMin = Mathf.Min(start.y, end.y);
+            int yMax = Mathf.Max(start.y, end.y);
+
+            for (int y = yMin; y <= yMax; y++)
+            {
+                DrawThickLine(start.x, y, true);
+            }
+        }
+        else // 水平走廊
+        {
+            int xMin = Mathf.Min(start.x, end.x);
+            int xMax = Mathf.Max(start.x, end.x);
+
+            for (int x = xMin; x <= xMax; x++)
+            {
+                DrawThickLine(x, start.y, false);
+            }
+        }
+    }
+
+    void DrawThickLine(int centerX, int centerY, bool isVertical)
+    {
+        int halfThickness = scale / 2;
+
+        if (isVertical)
+        {
+            for (int dx = -halfThickness; dx <= halfThickness; dx++)
+            {
+                Vector3Int pos = new Vector3Int(centerX + dx, centerY, 0);
+                AddRoadTile(pos);
+            }
         }
         else
         {
-            for (int oy = oStart; oy <= oEnd; oy++)
-                SetRoad(new Vector3Int(x, y + oy, 0));
+            for (int dy = -halfThickness; dy <= halfThickness; dy++)
+            {
+                Vector3Int pos = new Vector3Int(centerX, centerY + dy, 0);
+                AddRoadTile(pos);
+            }
         }
     }
+    #endregion
 
-    // ===== DFS ��ͨ + �����Ӵ����ȡ� =====
-    void Connect(int x, int y)
+    #region 房间构建
+    void BuildAllRooms()
     {
-        int[] dx = { 1, -1, 0, 0 };
-        int[] dy = { 0, 0, 1, -1 };
-
-        for (int k = 0; k < 4; k++)
+        foreach (var room in rooms)
         {
-            int nx = x + dx[k];
-            int ny = y + dy[k];
-
-            if (nx < 0 || ny < 0 || nx >= map_n || ny >= map_n) continue;
-            if (position[nx, ny] != 1) continue;
-            if (finalmap[nx, ny] == 1) continue;
-
-            finalmap[nx, ny] = 1;
-
-            int x0 = px[x, y], y0 = py[x, y];
-            int x1 = px[nx, ny], y1 = py[nx, ny];
-
-            if (x0 == x1)
-            {
-                // ��ֱ���ȣ���x����ˢ��
-                int ya = Mathf.Min(y0, y1);
-                int yb = Mathf.Max(y0, y1);
-                for (int yy = ya; yy <= yb; yy++)
-                    PaintThickPoint(x0, yy, vertical: true);
-            }
-            else
-            {
-                // ˮƽ���ȣ���y����ˢ��
-                int xa = Mathf.Min(x0, x1);
-                int xb = Mathf.Max(x0, x1);
-                for (int xx = xa; xx <= xb; xx++)
-                    PaintThickPoint(xx, y0, vertical: false);
-            }
-
-            Connect(nx, ny);
+            BuildRoom(room);
         }
     }
 
-    int CountConnectedCells()
+    void BuildRoom(Room room)
     {
-        int c = 0;
-        for (int x = 0; x < map_n; x++)
-            for (int y = 0; y < map_n; y++)
-                if (finalmap[x, y] == 1) c++;
-        return c;
-    }
+        int halfWidth = room.width / 2;
+        int halfHeight = room.height / 2;
 
-    // BFS + Ҷ��ѡ�յ�
-    Vector2Int FindEndCell()
-    {
-        const int INF = 9999;
-        int[,] dist = new int[10, 10];
-        for (int i = 0; i < 10; i++)
-            for (int j = 0; j < 10; j++)
-                dist[i, j] = INF;
-
-        Queue<Vector2Int> q = new Queue<Vector2Int>();
-        q.Enqueue(new Vector2Int(sx, sy));
-        dist[sx, sy] = 0;
-
-        int[] dx = { 1, -1, 0, 0 };
-        int[] dy = { 0, 0, 1, -1 };
-
-        while (q.Count > 0)
+        // 填充房间内部
+        for (int dx = -halfWidth; dx <= halfWidth; dx++)
         {
-            Vector2Int cur = q.Dequeue();
-            for (int k = 0; k < 4; k++)
+            for (int dy = -halfHeight; dy <= halfHeight; dy++)
             {
-                int nx = cur.x + dx[k];
-                int ny = cur.y + dy[k];
-                if (nx < 0 || ny < 0 || nx >= map_n || ny >= map_n) continue;
-                if (finalmap[nx, ny] != 1) continue;
-                if (dist[nx, ny] != INF) continue;
-
-                dist[nx, ny] = dist[cur.x, cur.y] + 1;
-                q.Enqueue(new Vector2Int(nx, ny));
+                Vector3Int pos = new Vector3Int(room.worldCenter.x + dx, room.worldCenter.y + dy, 0);
+                AddRoadTile(pos);
             }
         }
 
-        Vector2Int best = new Vector2Int(sx, sy);
-        int bestDist = -1;
+        // 如果是终点房间，添加特殊墙壁
+        if (room.isEndRoom)
+        {
+            BuildEndRoomWalls(room);
+        }
+    }
 
-        for (int x = 0; x < map_n; x++)
-            for (int y = 0; y < map_n; y++)
+    void BuildEndRoomWalls(Room room)
+    {
+        int innerHalfWidth = room.width / 2;
+        int innerHalfHeight = room.height / 2;
+        int outerHalfWidth = innerHalfWidth + 1;
+        int outerHalfHeight = innerHalfHeight + 1;
+
+        // 绘制外框墙壁
+        for (int dx = -outerHalfWidth; dx <= outerHalfWidth; dx++)
+        {
+            for (int dy = -outerHalfHeight; dy <= outerHalfHeight; dy++)
             {
-                if (finalmap[x, y] != 1) continue;
-                if (position[x, y] != 1) continue;
+                bool isBorder = Mathf.Abs(dx) == outerHalfWidth || Mathf.Abs(dy) == outerHalfHeight;
+                if (!isBorder) continue;
 
-                int deg = 0;
-                for (int k = 0; k < 4; k++)
+                Vector3Int pos = new Vector3Int(room.worldCenter.x + dx, room.worldCenter.y + dy, 0);
+
+                // 检查外部是否有道路
+                bool shouldBeDoor = false;
+                if (dx == -outerHalfWidth) shouldBeDoor = roadPositions.Contains(pos + new Vector3Int(-1, 0, 0));
+                else if (dx == outerHalfWidth) shouldBeDoor = roadPositions.Contains(pos + new Vector3Int(1, 0, 0));
+                else if (dy == -outerHalfHeight) shouldBeDoor = roadPositions.Contains(pos + new Vector3Int(0, -1, 0));
+                else if (dy == outerHalfHeight) shouldBeDoor = roadPositions.Contains(pos + new Vector3Int(0, 1, 0));
+
+                if (shouldBeDoor)
                 {
-                    int nx = x + dx[k], ny = y + dy[k];
-                    if (nx < 0 || ny < 0 || nx >= map_n || ny >= map_n) continue;
-                    if (finalmap[nx, ny] == 1) deg++;
+                    AddRoadTile(pos); // 开门
                 }
-
-                if (deg == 1 && !(x == sx && y == sy))
+                else
                 {
-                    if (dist[x, y] > bestDist)
-                    {
-                        bestDist = dist[x, y];
-                        best = new Vector2Int(x, y);
-                    }
+                    AddWallTile(pos);
                 }
             }
+        }
+    }
+    #endregion
 
-        if (bestDist < 0)
+    #region 敌人生成
+    void GenerateAllEnemies()
+    {
+        if (enemyPrefab == null)
         {
-            for (int x = 0; x < map_n; x++)
-                for (int y = 0; y < map_n; y++)
-                {
-                    if (finalmap[x, y] != 1) continue;
-                    if (position[x, y] != 1) continue;
-                    if (dist[x, y] == INF) continue;
-                    if (dist[x, y] > bestDist)
-                    {
-                        bestDist = dist[x, y];
-                        best = new Vector2Int(x, y);
-                    }
-                }
+            if (logDetails) Debug.LogWarning("未设置敌人预制体，跳过敌人生成");
+            return;
         }
 
-        return best;
+        // 创建敌人容器
+        GameObject enemyContainer = new GameObject($"Enemies_Gen{generationId}");
+        enemyContainer.transform.SetParent(transform);
+
+        foreach (var room in rooms)
+        {
+            // 检查是否应该在这个房间生成敌人
+            if (room.isStartRoom && !spawnEnemiesInStartRoom) continue;
+            if (room.isEndRoom && !spawnEnemiesInEndRoom) continue;
+
+            GenerateEnemiesInRoom(room, enemyContainer);
+        }
     }
 
-    void BuildStartFixed_5x5_Scaled()
+    void GenerateEnemiesInRoom(Room room, GameObject container)
     {
-        Vector3Int c = new Vector3Int(px[sx, sy], py[sx, sy], 0);
-        int startSize = 5 * scale; // 10
-        FillRectCentered(c, startSize, startSize);
-    }
+        int enemyCount = Random.Range(minEnemiesPerRoom, maxEnemiesPerRoom + 1);
+        int enemiesSpawned = 0;
 
-    void BuildNormalRooms(Vector2Int endCell)
-    {
-        for (int x = 0; x < map_n; x++)
-            for (int y = 0; y < map_n; y++)
+        float halfWidth = room.width / 2f - enemySpawnMargin;
+        float halfHeight = room.height / 2f - enemySpawnMargin;
+
+        for (int i = 0; i < enemyCount; i++)
+        {
+            Vector3 spawnPos = FindValidSpawnPosition(room, halfWidth, halfHeight);
+            if (spawnPos != Vector3.zero)
             {
-                if (finalmap[x, y] != 1) continue;
+                GameObject enemy = Instantiate(enemyPrefab, spawnPos, Quaternion.identity);
+                enemy.name = $"Enemy_R{room.gridPosition.x}_{room.gridPosition.y}_{i}";
+                enemy.transform.SetParent(container.transform);
 
-                if (x == sx && y == sy) continue;
-                if (x == endCell.x && y == endCell.y) continue;
-
-                Vector3Int c = new Vector3Int(px[x, y], py[x, y], 0);
-
-                int e = Random.Range(2, 4);     // 2..3
-                int size = (2 * e + 1) * scale; // 10..14
-                FillRectCentered(c, size, size);
+                spawnedEnemies.Add(enemy);
+                enemiesSpawned++;
             }
+        }
+
+        if (logDetails && enemiesSpawned > 0)
+        {
+            Debug.Log($"房间({room.gridPosition.x},{room.gridPosition.y}) 生成 {enemiesSpawned}/{enemyCount} 个敌人");
+        }
     }
 
-    void BuildEndRoom_Inner11_Scaled_NoWallAtConnection(Vector3Int center)
+    Vector3 FindValidSpawnPosition(Room room, float halfWidth, float halfHeight, int maxAttempts = 20)
     {
-        int innerSize = 11 * scale;    // 22
-        int outerSize = innerSize + 2; // 24��ǽ��1��
+        for (int attempt = 0; attempt < maxAttempts; attempt++)
+        {
+            float randomX = Random.Range(-halfWidth, halfWidth);
+            float randomY = Random.Range(-halfHeight, halfHeight);
+            Vector3 spawnPos = new Vector3(
+                room.worldCenter.x + randomX,
+                room.worldCenter.y + randomY,
+                0
+            );
 
-        FillRectCentered(center, innerSize, innerSize);
-        BorderRectCentered_WallWithDoor(center, outerSize, outerSize);
+            Vector3Int tilePos = new Vector3Int(
+                Mathf.RoundToInt(spawnPos.x),
+                Mathf.RoundToInt(spawnPos.y),
+                0
+            );
+
+            // 检查位置是否在道路上
+            if (roadPositions.Contains(tilePos))
+            {
+                return spawnPos;
+            }
+        }
+
+        return Vector3.zero;
+    }
+    #endregion
+
+    #region 辅助功能
+    void AddRoadTile(Vector3Int position)
+    {
+        if (groundTilemap == null) return;
+
+        groundTilemap.SetTile(position, roadTile);
+        roadPositions.Add(position);
     }
 
-    void SurroundWalls()
+    void AddWallTile(Vector3Int position)
     {
-        HashSet<Vector3Int> candidates = new HashSet<Vector3Int>();
+        if (wallTilemap == null) return;
+        if (roadPositions.Contains(position)) return;
+        if (wallTilemap.GetTile(position) != null) return;
 
-        foreach (var p in roadSet)
+        wallTilemap.SetTile(position, wallTile);
+    }
+
+    Room GetRoomAtGrid(Vector2Int gridPos)
+    {
+        foreach (var room in rooms)
+        {
+            if (room.gridPosition == gridPos) return room;
+        }
+        return null;
+    }
+
+    void AddSurroundingWalls()
+    {
+        HashSet<Vector3Int> wallCandidates = new HashSet<Vector3Int>();
+
+        // 收集所有道路旁边的空位
+        foreach (var roadPos in roadPositions)
         {
             for (int dx = -1; dx <= 1; dx++)
+            {
                 for (int dy = -1; dy <= 1; dy++)
                 {
                     if (dx == 0 && dy == 0) continue;
-                    Vector3Int q = new Vector3Int(p.x + dx, p.y + dy, 0);
-                    if (!roadSet.Contains(q) && wallTilemap.GetTile(q) == null)
-                        candidates.Add(q);
+
+                    Vector3Int neighbor = new Vector3Int(roadPos.x + dx, roadPos.y + dy, 0);
+                    if (!roadPositions.Contains(neighbor))
+                    {
+                        wallCandidates.Add(neighbor);
+                    }
                 }
+            }
         }
 
-        foreach (var q in candidates)
-            SetWall(q);
-    }
-
-    void Generate()
-    {
-        while (true)
+        // 添加墙壁
+        foreach (var pos in wallCandidates)
         {
-            ClearAll();
-
-            map_n = Random.Range(3, 6);
-            sx = sy = 0;
-
-            int spacing = baseCellSpacing * scale; // ���Ҳ���������巭����
-
-            for (int x = 0; x < map_n; x++)
-                for (int y = 0; y < map_n; y++)
-                {
-                    position[x, y] = Random.Range(0, 2);
-                    finalmap[x, y] = 0;
-                    px[x, y] = x * spacing;
-                    py[x, y] = y * spacing;
-                }
-
-            position[sx, sy] = 1;
-            finalmap[sx, sy] = 1;
-
-            // ����ͨ�������Ӵ����ȡ�
-            Connect(sx, sy);
-
-            int connected = CountConnectedCells();
-            int need = map_n * map_n / 3 + 1;
-            if (connected < need) continue;
-
-            BuildStartFixed_5x5_Scaled();
-
-            Vector2Int end = FindEndCell();
-            Vector3Int endCenter = new Vector3Int(px[end.x, end.y], py[end.x, end.y], 0);
-
-            BuildNormalRooms(end);
-
-            BuildEndRoom_Inner11_Scaled_NoWallAtConnection(endCenter);
-
-            SurroundWalls();
-
-            Debug.Log($"scale={scale}, map_n={map_n}, connectedRooms={connected}, need={need}, endCell=({end.x},{end.y})");
-            break;
+            AddWallTile(pos);
         }
     }
+    #endregion
+
+    #region 房间类
+    [System.Serializable]
+    public class Room
+    {
+        public Vector2Int gridPosition;    // 在网格中的位置
+        public Vector3Int worldCenter;     // 世界坐标中心
+        public int width;                  // 房间宽度（格子数）
+        public int height;                 // 房间高度（格子数）
+        public bool isStartRoom;           // 是否是起始房间
+        public bool isEndRoom;             // 是否是终点房间
+
+        public Vector3 GetWorldCenterFloat()
+        {
+            return new Vector3(worldCenter.x, worldCenter.y, 0);
+        }
+    }
+    #endregion
+
+    #region 调试和工具
+    [ContextMenu("重新生成地图")]
+    public void RegenerateMap()
+    {
+        GenerateCompleteMap();
+    }
+
+    [ContextMenu("清理所有")]
+    public void CleanAll()
+    {
+        ClearEverything();
+    }
+
+    [ContextMenu("显示地图信息")]
+    public void LogMapInfo()
+    {
+        Debug.Log($"=== 地图信息 ===");
+        Debug.Log($"生成ID: {generationId}");
+        Debug.Log($"网格大小: {mapGridSize}x{mapGridSize}");
+        Debug.Log($"房间数量: {rooms.Count}");
+        Debug.Log($"道路格子: {roadPositions.Count}");
+        Debug.Log($"敌人数量: {spawnedEnemies.Count}");
+
+        foreach (var room in rooms)
+        {
+            string type = room.isStartRoom ? "起始" : room.isEndRoom ? "终点" : "普通";
+            Debug.Log($"{type}房间: ({room.gridPosition.x},{room.gridPosition.y}) 大小:{room.width}x{room.height}");
+        }
+    }
+
+    void OnDrawGizmos()
+    {
+        if (!drawGizmos || rooms.Count == 0) return;
+
+        // 绘制房间
+        foreach (var room in rooms)
+        {
+            if (room.isStartRoom)
+            {
+                Gizmos.color = Color.green;
+                Gizmos.DrawWireCube(room.GetWorldCenterFloat(), new Vector3(room.width, room.height, 0));
+            }
+            else if (room.isEndRoom)
+            {
+                Gizmos.color = Color.red;
+                Gizmos.DrawWireCube(room.GetWorldCenterFloat(), new Vector3(room.width, room.height, 0));
+            }
+            else
+            {
+                Gizmos.color = Color.yellow;
+                Gizmos.DrawWireCube(room.GetWorldCenterFloat(), new Vector3(room.width, room.height, 0));
+            }
+        }
+
+        // 绘制道路
+        Gizmos.color = new Color(0.5f, 0.5f, 1f, 0.3f);
+        foreach (var pos in roadPositions)
+        {
+            Gizmos.DrawCube(new Vector3(pos.x + 0.5f, pos.y + 0.5f, 0), Vector3.one * 0.8f);
+        }
+
+        // 绘制敌人
+        Gizmos.color = Color.magenta;
+        foreach (var enemy in spawnedEnemies)
+        {
+            if (enemy != null)
+            {
+                Gizmos.DrawSphere(enemy.transform.position, 0.5f);
+            }
+        }
+    }
+
+    void OnGUI()
+    {
+        if (!Application.isPlaying) return;
+
+        GUIStyle boxStyle = new GUIStyle(GUI.skin.box);
+        boxStyle.normal.textColor = Color.white;
+        boxStyle.fontSize = 12;
+
+        string info = $"地图: {mapGridSize}x{mapGridSize}\n" +
+                     $"房间: {rooms.Count}\n" +
+                     $"敌人: {spawnedEnemies.Count}\n" +
+                     $"生成: #{generationId}";
+
+        GUI.Box(new Rect(10, 10, 150, 80), info, boxStyle);
+
+        if (GUI.Button(new Rect(10, 100, 150, 30), "重新生成"))
+        {
+            RegenerateMap();
+        }
+
+        if (GUI.Button(new Rect(10, 140, 150, 30), "显示信息"))
+        {
+            LogMapInfo();
+        }
+    }
+    #endregion
 }

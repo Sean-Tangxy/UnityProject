@@ -1,6 +1,6 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
---- !u!1 &3560648886764994127
+--- !u!1 &7634173154342554437
 GameObject:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
@@ -8,46 +8,51 @@ GameObject:
   m_PrefabAsset: {fileID: 0}
   serializedVersion: 6
   m_Component:
-  - component: {fileID: 3127362213429108334}
-  - component: {fileID: 7585918130022708537}
+  - component: {fileID: 2786403578218661341}
+  - component: {fileID: 7048736530669598875}
   m_Layer: 0
-  m_Name: map_built 1
+  m_Name: EnemySpawner
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!4 &3127362213429108334
+--- !u!4 &2786403578218661341
 Transform:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3560648886764994127}
+  m_GameObject: {fileID: 7634173154342554437}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: -2.8818507, y: 6.102539, z: -0.10011184}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &7585918130022708537
+--- !u!114 &7048736530669598875
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 3560648886764994127}
+  m_GameObject: {fileID: 7634173154342554437}
   m_Enabled: 1
   m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 83ca9b640b254d64e82ef54b5c923c9d, type: 3}
+  m_Script: {fileID: 11500000, guid: a11482dc051299648ba339c563324c31, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  groundTilemap: {fileID: 0}
-  wallTilemap: {fileID: 0}
-  road: {fileID: 11400000, guid: 8f20e2d19b8402f40bf46f581cb523cb, type: 2}
-  wall: {fileID: 11400000, guid: 36f1ac5f295a3d541a4905158183c24d, type: 2}
-  map_n: 9
-  baseCellSpacing: 15
-  scale: 2
+  enemyPrefab: {fileID: 5500461828044945701, guid: 92fd3a778fb0457499cac9b065e20f40, type: 3}
+  enemiesPerWave: 2
+  spawnInterval: 3
+  waveInterval: 5
+  spawnRadius: 3
+  minEnemyDistance: 1.5
+  spawnBlockLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  spawnInWaves: 1
+  totalWaves: 3
+  infiniteWaves: 0
