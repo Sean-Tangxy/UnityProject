@@ -98,7 +98,7 @@ MonoBehaviour:
     m_Bits: 128
   interactKey: 116
   intime: 0.2
-  needscene: 0
+  needscene: 1
   to: {fileID: 0}
   goscene: 2
   sceneposition: {x: 0, y: 0, z: 0}
